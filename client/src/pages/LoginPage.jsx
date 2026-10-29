@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+/**
+ * LoginPage Component
+ * User sign-in interface supporting credentials login, expired session detection banner,
+ * redirect preservation, and quick demo credentials filling for evaluation.
+ */
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -2,23 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import projectService from '../services/projectService';
 import { useProjects } from '../context/ProjectContext';
-
-const CATEGORIES = ['Web', 'Mobile', 'AI/ML', 'Embedded', 'IoT', 'Other'];
-const STATUSES = ['Idea', 'In Progress', 'Completed'];
+import { PROJECT_CATEGORIES, PROJECT_STATUSES } from '../utils/constants';
+import { isValidUrl } from '../utils/formatters';
 
 /**
- * Validates a web URL string (must start with http:// or https://)
+ * ProjectForm Component
+ * Handles both project creation and editing workflows.
+ * Features client-side validation matching server constraints, pre-filling on edit,
+ * character counter, server error mapping, button disabling, and toast feedback.
  */
-const isValidUrl = (urlString) => {
-  if (!urlString) return true; // Optional field
-  try {
-    const parsed = new URL(urlString.trim());
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
-
 const ProjectForm = () => {
   const { id } = useParams();
   const isEditing = Boolean(id);
@@ -122,13 +114,13 @@ const ProjectForm = () => {
     }
 
     // 3. Category
-    if (!formData.category || !CATEGORIES.includes(formData.category)) {
-      errs.category = `Please select a valid category (${CATEGORIES.join(', ')})`;
+    if (!formData.category || !PROJECT_CATEGORIES.includes(formData.category)) {
+      errs.category = `Please select a valid category (${PROJECT_CATEGORIES.join(', ')})`;
     }
 
     // 4. Status
-    if (!formData.status || !STATUSES.includes(formData.status)) {
-      errs.status = `Please select a valid status (${STATUSES.join(', ')})`;
+    if (!formData.status || !PROJECT_STATUSES.includes(formData.status)) {
+      errs.status = `Please select a valid status (${PROJECT_STATUSES.join(', ')})`;
     }
 
     // 5. Tech Stack (at least one technology)
@@ -352,7 +344,7 @@ const ProjectForm = () => {
                 onChange={handleChange}
                 disabled={submitting}
               >
-                {CATEGORIES.map((cat) => (
+                {PROJECT_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
@@ -375,7 +367,7 @@ const ProjectForm = () => {
                 onChange={handleChange}
                 disabled={submitting}
               >
-                {STATUSES.map((stat) => (
+                {PROJECT_STATUSES.map((stat) => (
                   <option key={stat} value={stat}>
                     {stat}
                   </option>

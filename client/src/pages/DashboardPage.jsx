@@ -4,7 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { useProjects } from '../context/ProjectContext';
 import collaborationService from '../services/collaborationService';
 import ConfirmModal from '../components/ConfirmModal';
+import { getStatusBadgeClass, formatDate } from '../utils/formatters';
 
+/**
+ * DashboardPage Component
+ * Student and administrator hub for managing personal showcase projects,
+ * reviewing incoming collaboration pitches, and tracking sent requests.
+ */
 const DashboardPage = () => {
   const { user } = useAuth();
   const { projects, loading: projectsLoading, error: projectsError, fetchProjects, deleteProject } = useProjects();
@@ -115,21 +121,6 @@ const DashboardPage = () => {
       loadCollaborations();
     } catch (err) {
       showToast('error', err.message || `Failed to ${newStatus} request`);
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'accepted':
-      case 'Completed':
-        return 'badge-success';
-      case 'rejected':
-        return 'badge-error';
-      case 'pending':
-      case 'In Progress':
-        return 'badge-info';
-      default:
-        return 'badge-warning';
     }
   };
 
@@ -270,7 +261,7 @@ const DashboardPage = () => {
                         <span className="department-tag">{p.category || 'Other'}</span>
                       </td>
                       <td>
-                        <span className={`status-badge ${getStatusBadge(p.status)}`}>
+                        <span className={`status-badge ${getStatusBadgeClass(p.status)}`}>
                           {p.status || 'Idea'}
                         </span>
                       </td>
@@ -282,7 +273,7 @@ const DashboardPage = () => {
                         )}
                       </td>
                       <td className="text-muted">
-                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'Recent'}
+                        {formatDate(p.createdAt)}
                       </td>
                       <td>
                         <div className="table-actions">
@@ -363,7 +354,7 @@ const DashboardPage = () => {
                         {req.requester?.email || 'No email provided'}
                       </p>
                     </div>
-                    <span className={`status-badge ${getStatusBadge(req.status)}`}>
+                    <span className={`status-badge ${getStatusBadgeClass(req.status)}`}>
                       {req.status}
                     </span>
                   </div>
@@ -374,7 +365,7 @@ const DashboardPage = () => {
 
                   <div className="request-card-footer">
                     <span className="request-date">
-                      Received on: {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'Recent'}
+                      Received on: {formatDate(req.createdAt)}
                     </span>
 
                     {req.status === 'pending' ? (
@@ -469,7 +460,7 @@ const DashboardPage = () => {
                         {req.project?.owner?.department || 'Faculty of Engineering'})
                       </p>
                     </div>
-                    <span className={`status-badge ${getStatusBadge(req.status)}`}>
+                    <span className={`status-badge ${getStatusBadgeClass(req.status)}`}>
                       {req.status === 'accepted'
                         ? 'Accepted 🎉'
                         : req.status === 'rejected'
@@ -484,7 +475,7 @@ const DashboardPage = () => {
 
                   <div className="request-card-footer">
                     <span className="request-date">
-                      Submitted on: {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'Recent'}
+                      Submitted on: {formatDate(req.createdAt)}
                     </span>
                     {req.project && (
                       <Link

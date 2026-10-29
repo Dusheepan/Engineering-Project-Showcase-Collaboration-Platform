@@ -1,6 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+/**
+ * NotFoundPage Component
+ * 404 catch-all view featuring engineering imagery, clear explanation,
+ * and quick navigation links back to the home view, showcase, or dashboard.
+ */
 const NotFoundPage = () => {
   return (
     <div className="container page-container not-found-page text-center">

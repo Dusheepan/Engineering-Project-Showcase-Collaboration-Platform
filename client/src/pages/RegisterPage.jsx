@@ -1,17 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ENGINEERING_DEPARTMENTS } from '../utils/constants';
 
-const DEPARTMENTS = [
-  'Computer Engineering',
-  'Electrical & Electronic Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Mechatronics Engineering',
-  'Chemical Engineering',
-  'Other',
-];
-
+/**
+ * RegisterPage Component
+ * User registration view providing instant client-side validation, password matching,
+ * engineering department selection, role configuration, and immediate token persistence.
+ */
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -138,7 +134,7 @@ const RegisterPage = () => {
                 value={formData.department}
                 onChange={handleChange}
               >
-                {DEPARTMENTS.map((dept) => (
+                {ENGINEERING_DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
                   </option>

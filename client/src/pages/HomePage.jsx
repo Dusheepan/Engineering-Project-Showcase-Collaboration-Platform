@@ -1,6 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+/**
+ * HomePage Component
+ * Landing view highlighting platform capabilities, quick exploration actions,
+ * and entry points to the student project directory.
+ */
 const HomePage = () => {
   return (
     <div className="home-page">

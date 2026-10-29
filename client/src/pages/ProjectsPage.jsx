@@ -3,10 +3,17 @@ import { Link } from 'react-router-dom';
 import { useProjects } from '../context/ProjectContext';
 import ProjectCard from '../components/ProjectCard';
 import ConfirmModal from '../components/ConfirmModal';
+import { PROJECT_CATEGORIES, PROJECT_STATUSES } from '../utils/constants';
 
-const CATEGORIES = ['All', 'Web', 'Mobile', 'AI/ML', 'Embedded', 'IoT', 'Other'];
-const STATUSES = ['All', 'Idea', 'In Progress', 'Completed'];
+const CATEGORIES = ['All', ...PROJECT_CATEGORIES];
+const STATUSES = ['All', ...PROJECT_STATUSES];
 
+/**
+ * ProjectsPage Component
+ * Public showcase directory displaying project cards in a responsive grid.
+ * Equipped with debounced keyword search, category & status dropdown filters,
+ * sort order selection, per-page limit controls, and pagination.
+ */
 const ProjectsPage = () => {
   const { projects, pagination, loading, error, fetchProjects, deleteProject } = useProjects();
 

@@ -1,42 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getStatusBadgeClass, getCategoryClass, truncateText } from '../utils/formatters';
 
+/**
+ * ProjectCard Component
+ * Displays a summary card for an engineering showcase project including
+ * category, status, title, truncated description, tech chips, and authorized action buttons.
+ *
+ * @param {Object} project - The project data object
+ * @param {Function} onDelete - Optional callback invoked when the owner/admin clicks delete
+ */
 const ProjectCard = ({ project, onDelete }) => {
   const { user, isAdmin } = useAuth();
 
-  // Status styling
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'Completed':
-        return 'badge-success';
-      case 'In Progress':
-        return 'badge-info';
-      case 'Idea':
-        return 'badge-warning';
-      default:
-        return 'badge-default';
-    }
-  };
-
-  // Category chip styling
-  const getCategoryClass = (category) => {
-    switch (category) {
-      case 'AI/ML':
-        return 'cat-badge-ai';
-      case 'IoT':
-        return 'cat-badge-iot';
-      case 'Web':
-        return 'cat-badge-web';
-      case 'Mobile':
-        return 'cat-badge-mobile';
-      case 'Embedded':
-        return 'cat-badge-embedded';
-      default:
-        return 'cat-badge-other';
-    }
-  };
-
+  // Guard against undefined project data
   if (!project) return null;
 
   const techs = Array.isArray(project.techStack)
@@ -47,7 +25,7 @@ const ProjectCard = ({ project, onDelete }) => {
 
   const desc = project.description || '';
 
-  // Determine if current user can edit/delete this card
+  // Determine if current user can edit/delete this card (owner or admin)
   const currentUserId = user?._id || user?.id;
   const projectOwnerId = project.owner?._id || project.owner;
   const isOwner = Boolean(
@@ -80,19 +58,17 @@ const ProjectCard = ({ project, onDelete }) => {
         </div>
       </div>
 
-      {/* Title */}
+      {/* Project Title */}
       <h3 className="project-title">
         <Link to={`/projects/${project._id}`}>{project.title || 'Untitled Project'}</Link>
       </h3>
 
       {/* Description Snippet */}
       <p className="project-description">
-        {desc.length > 130
-          ? `${desc.substring(0, 130)}...`
-          : desc || 'No description provided.'}
+        {truncateText(desc, 130) || 'No description provided.'}
       </p>
 
-      {/* Tech Stack Chips */}
+      {/* Tech Stack Chips (Show first 4) */}
       <div className="tech-stack-tags">
         {techs.slice(0, 4).map((tech, idx) => (
           <span key={idx} className="tech-pill">
@@ -104,7 +80,7 @@ const ProjectCard = ({ project, onDelete }) => {
         )}
       </div>
 
-      {/* Card Footer: Owner Name & Actions */}
+      {/* Card Footer: Owner Metadata & Actions */}
       <div className="project-card-footer">
         <div className="project-meta-owner">
           <span className="owner-icon">👤</span>

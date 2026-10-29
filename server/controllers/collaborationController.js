@@ -1,20 +1,6 @@
 const CollaborationRequest = require('../models/CollaborationRequest');
 const Project = require('../models/Project');
-const { validationResult } = require('express-validator');
-
-/**
- * Format express-validator errors into a unified { field, message } array
- */
-const getValidationErrors = (req) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return errors.array().map((err) => ({
-      field: err.path || err.param,
-      message: err.msg,
-    }));
-  }
-  return null;
-};
+const { getValidationErrors } = require('../middleware/validate');
 
 /**
  * @desc    Submit a collaboration request for a project

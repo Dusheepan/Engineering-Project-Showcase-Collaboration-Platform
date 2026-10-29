@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+/**
+ * Navbar Component
+ * Responsive top navigation bar with brand logo, links, auth state, user profile chip,
+ * and a mobile hamburger menu drawer.
+ */
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

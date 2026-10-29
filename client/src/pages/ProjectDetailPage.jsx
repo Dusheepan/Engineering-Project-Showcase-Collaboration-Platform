@@ -5,7 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import projectService from '../services/projectService';
 import commentService from '../services/commentService';
 import ConfirmModal from '../components/ConfirmModal';
+import { getStatusBadgeClass, getCategoryClass, formatDate } from '../utils/formatters';
 
+/**
+ * ProjectDetailPage Component
+ * Detailed view of an engineering project including full specs, live links,
+ * interactive peer discussion / comments, and team collaboration requests.
+ */
 const ProjectDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -198,19 +204,6 @@ const ProjectDetailPage = () => {
       setCollabError(err.message || 'Failed to submit collaboration request.');
     } finally {
       setSubmittingCollab(false);
-    }
-  };
-
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'Completed':
-        return 'badge-success';
-      case 'In Progress':
-        return 'badge-info';
-      case 'Idea':
-        return 'badge-warning';
-      default:
-        return 'badge-default';
     }
   };
 
@@ -505,7 +498,7 @@ const ProjectDetailPage = () => {
                           <strong>{c.author?.name || 'Anonymous User'}</strong>
                           <span className="comment-meta-sub">
                             {c.author?.department ? ` (${c.author.department})` : ''} •{' '}
-                            {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent'}
+                            {formatDate(c.createdAt)}
                           </span>
                         </div>
                       </div>
