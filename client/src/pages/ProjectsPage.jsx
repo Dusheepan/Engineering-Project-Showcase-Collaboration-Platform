@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useProjects } from '../context/ProjectContext';
 import ProjectCard from '../components/ProjectCard';
+import ConfirmModal from '../components/ConfirmModal';
 
 const CATEGORIES = ['All', 'Web', 'Mobile', 'AI/ML', 'Embedded', 'IoT', 'Other'];
 const STATUSES = ['All', 'Idea', 'In Progress', 'Completed'];
@@ -71,19 +72,45 @@ const ProjectsPage = () => {
     });
   }, [debouncedSearch, selectedCategory, selectedStatus, sortBy, page, limit, fetchProjects]);
 
-  // Handle Project Delete
-  const handleDelete = async (id, title) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete the project "${title}"?`
-    );
-    if (!confirmed) return;
+  // Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    projectId: null,
+    projectTitle: '',
+    loading: false,
+  });
 
+  const handleOpenDeleteModal = (id, title) => {
+    setDeleteModal({
+      isOpen: true,
+      projectId: id,
+      projectTitle: title,
+      loading: false,
+    });
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (!deleteModal.loading) {
+      setDeleteModal({
+        isOpen: false,
+        projectId: null,
+        projectTitle: '',
+        loading: false,
+      });
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.projectId) return;
+
+    setDeleteModal((prev) => ({ ...prev, loading: true }));
     try {
-      await deleteProject(id);
+      await deleteProject(deleteModal.projectId);
       setNotification({
         type: 'success',
-        message: `Project "${title}" was successfully deleted.`,
+        message: `Project "${deleteModal.projectTitle}" was successfully deleted.`,
       });
+      handleCloseDeleteModal();
       // Refresh current page
       fetchProjects({
         search: debouncedSearch.trim(),
@@ -99,6 +126,7 @@ const ProjectsPage = () => {
         type: 'error',
         message: err.message || 'Failed to delete project.',
       });
+      setDeleteModal((prev) => ({ ...prev, loading: false }));
       setTimeout(() => setNotification(null), 4000);
     }
   };
@@ -113,6 +141,19 @@ const ProjectsPage = () => {
 
   return (
     <div className="container page-container projects-showcase-page">
+      {/* Reusable ConfirmModal for Project Deletion */}
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Showcase Project"
+        itemName={deleteModal.projectTitle}
+        message={`Are you sure you want to permanently delete "${deleteModal.projectTitle}"? This will delete the project, all comments, and collaboration requests permanently.`}
+        confirmText="Delete Project"
+        cancelText="Cancel"
+        loading={deleteModal.loading}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCloseDeleteModal}
+      />
+
       {/* Page Header */}
       <div className="page-header">
         <div>
@@ -307,7 +348,7 @@ const ProjectsPage = () => {
               <ProjectCard
                 key={project._id}
                 project={project}
-                onDelete={handleDelete}
+                onDelete={handleOpenDeleteModal}
               />
             ))}
           </div>

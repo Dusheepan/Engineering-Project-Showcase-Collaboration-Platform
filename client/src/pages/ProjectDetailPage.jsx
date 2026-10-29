@@ -4,6 +4,7 @@ import { useProjects } from '../context/ProjectContext';
 import { useAuth } from '../context/AuthContext';
 import projectService from '../services/projectService';
 import commentService from '../services/commentService';
+import ConfirmModal from '../components/ConfirmModal';
 
 const ProjectDetailPage = () => {
   const { id } = useParams();
@@ -28,6 +29,19 @@ const ProjectDetailPage = () => {
   const [submittingCollab, setSubmittingCollab] = useState(false);
   const [collabError, setCollabError] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Confirmation Modals for Project and Comment Deletion
+  const [projectDeleteModal, setProjectDeleteModal] = useState({
+    isOpen: false,
+    loading: false,
+  });
+
+  const [commentDeleteModal, setCommentDeleteModal] = useState({
+    isOpen: false,
+    commentId: null,
+    commentSnippet: '',
+    loading: false,
+  });
 
   // Load project details
   const loadProject = useCallback(async () => {
@@ -67,21 +81,40 @@ const ProjectDetailPage = () => {
   );
   const canModify = isOwner || isAdmin;
 
-  // Handle Project Delete
-  const handleDelete = async () => {
-    if (!window.confirm(`Are you sure you want to permanently delete "${project.title}"?`)) {
-      return;
-    }
-    try {
-      await deleteProject(id);
-      setToast({ type: 'success', message: 'Project was deleted successfully.' });
-      setTimeout(() => navigate('/projects'), 1000);
-    } catch (err) {
-      alert(`Failed to delete project: ${err.message}`);
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // --------------------------------------------------------------------------
+  // Project Deletion Handlers with ConfirmModal
+  // --------------------------------------------------------------------------
+  const handleOpenProjectDeleteModal = () => {
+    setProjectDeleteModal({ isOpen: true, loading: false });
+  };
+
+  const handleCloseProjectDeleteModal = () => {
+    if (!projectDeleteModal.loading) {
+      setProjectDeleteModal({ isOpen: false, loading: false });
     }
   };
 
-  // Handle Comment Submission
+  const handleConfirmDeleteProject = async () => {
+    setProjectDeleteModal({ isOpen: true, loading: true });
+    try {
+      await deleteProject(id);
+      showToast('success', 'Project was permanently deleted.');
+      setProjectDeleteModal({ isOpen: false, loading: false });
+      setTimeout(() => navigate('/projects'), 1200);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to delete project');
+      setProjectDeleteModal({ isOpen: false, loading: false });
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // Comment Handlers with ConfirmModal
+  // --------------------------------------------------------------------------
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
@@ -92,8 +125,7 @@ const ProjectDetailPage = () => {
       const res = await projectService.addComment(id, newComment.trim());
       setComments((prev) => [res.data, ...prev]);
       setNewComment('');
-      setToast({ type: 'success', message: 'Comment posted successfully!' });
-      setTimeout(() => setToast(null), 3000);
+      showToast('success', 'Comment posted successfully!');
     } catch (err) {
       setCommentError(err.message || 'Failed to post comment');
     } finally {
@@ -101,20 +133,50 @@ const ProjectDetailPage = () => {
     }
   };
 
-  // Handle Comment Deletion (Author or Admin only)
-  const handleDeleteComment = async (commentId) => {
-    if (!window.confirm('Delete this comment?')) return;
-    try {
-      await commentService.deleteComment(commentId);
-      setComments((prev) => prev.filter((c) => c._id !== commentId));
-      setToast({ type: 'success', message: 'Comment removed.' });
-      setTimeout(() => setToast(null), 3000);
-    } catch (err) {
-      alert(`Failed to delete comment: ${err.message}`);
+  const handleOpenCommentDeleteModal = (comment) => {
+    const snippet =
+      comment.text.length > 50
+        ? `"${comment.text.substring(0, 50)}..."`
+        : `"${comment.text}"`;
+
+    setCommentDeleteModal({
+      isOpen: true,
+      commentId: comment._id,
+      commentSnippet: `${snippet} by ${comment.author?.name || 'User'}`,
+      loading: false,
+    });
+  };
+
+  const handleCloseCommentDeleteModal = () => {
+    if (!commentDeleteModal.loading) {
+      setCommentDeleteModal({
+        isOpen: false,
+        commentId: null,
+        commentSnippet: '',
+        loading: false,
+      });
     }
   };
 
-  // Handle Collaboration Request Modal Submission
+  const handleConfirmDeleteComment = async () => {
+    if (!commentDeleteModal.commentId) return;
+
+    setCommentDeleteModal((prev) => ({ ...prev, loading: true }));
+    try {
+      await commentService.deleteComment(commentDeleteModal.commentId);
+      showToast('success', 'Comment was deleted successfully.');
+      handleCloseCommentDeleteModal();
+      // Refresh comments list
+      loadComments();
+    } catch (err) {
+      showToast('error', err.message || 'Failed to delete comment');
+      setCommentDeleteModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // Collaboration Request Handlers
+  // --------------------------------------------------------------------------
   const handleSendCollaboration = async (e) => {
     e.preventDefault();
     if (!collabMessage.trim() || collabMessage.trim().length < 5) {
@@ -126,13 +188,12 @@ const ProjectDetailPage = () => {
     setCollabError(null);
     try {
       await projectService.requestCollaboration(id, collabMessage.trim());
-      setToast({
-        type: 'success',
-        message: 'Collaboration request sent successfully to project owner!',
-      });
+      showToast(
+        'success',
+        'Collaboration request sent successfully to project owner!'
+      );
       setIsCollabModalOpen(false);
       setCollabMessage('');
-      setTimeout(() => setToast(null), 4000);
     } catch (err) {
       setCollabError(err.message || 'Failed to submit collaboration request.');
     } finally {
@@ -185,11 +246,39 @@ const ProjectDetailPage = () => {
       {toast && (
         <div className="toast-container">
           <div className={`toast toast-${toast.type}`}>
-            <span className="toast-icon">✓</span>
+            <span className="toast-icon">
+              {toast.type === 'success' ? '✓' : '✕'}
+            </span>
             <span className="toast-message">{toast.message}</span>
           </div>
         </div>
       )}
+
+      {/* ConfirmModal for Project Deletion */}
+      <ConfirmModal
+        isOpen={projectDeleteModal.isOpen}
+        title="Delete Project Permanently"
+        itemName={project.title}
+        message={`Are you sure you want to delete "${project.title}"? This action is permanent and will cascade-delete all peer reviews and collaboration requests associated with this project.`}
+        confirmText="Delete Project"
+        cancelText="Cancel"
+        loading={projectDeleteModal.loading}
+        onConfirm={handleConfirmDeleteProject}
+        onCancel={handleCloseProjectDeleteModal}
+      />
+
+      {/* ConfirmModal for Comment Deletion */}
+      <ConfirmModal
+        isOpen={commentDeleteModal.isOpen}
+        title="Delete Comment"
+        itemName={commentDeleteModal.commentSnippet}
+        message="Are you sure you want to delete this comment? This action is permanent and cannot be undone."
+        confirmText="Delete Comment"
+        cancelText="Cancel"
+        loading={commentDeleteModal.loading}
+        onConfirm={handleConfirmDeleteComment}
+        onCancel={handleCloseCommentDeleteModal}
+      />
 
       {/* Breadcrumb Navigation */}
       <div className="breadcrumb">
@@ -226,7 +315,8 @@ const ProjectDetailPage = () => {
                 ✏️ Edit Project
               </Link>
               <button
-                onClick={handleDelete}
+                type="button"
+                onClick={handleOpenProjectDeleteModal}
                 className="btn btn-danger-outline"
                 title="Delete Project"
               >
@@ -296,6 +386,7 @@ const ProjectDetailPage = () => {
                     </div>
                   ) : isAuthenticated ? (
                     <button
+                      type="button"
                       onClick={() => {
                         setCollabError(null);
                         setIsCollabModalOpen(true);
@@ -417,7 +508,8 @@ const ProjectDetailPage = () => {
 
                       {canDeleteComment && (
                         <button
-                          onClick={() => handleDeleteComment(c._id)}
+                          type="button"
+                          onClick={() => handleOpenCommentDeleteModal(c)}
                           className="btn btn-danger-outline btn-xs"
                           title="Delete comment"
                         >

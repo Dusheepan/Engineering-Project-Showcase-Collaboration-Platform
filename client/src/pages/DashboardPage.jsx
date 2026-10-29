@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProjects } from '../context/ProjectContext';
 import collaborationService from '../services/collaborationService';
+import ConfirmModal from '../components/ConfirmModal';
 
 const DashboardPage = () => {
   const { user } = useAuth();
@@ -13,7 +14,15 @@ const DashboardPage = () => {
   const [myRequests, setMyRequests] = useState([]);
   const [loadingCollabs, setLoadingCollabs] = useState(false);
   const [collabError, setCollabError] = useState(null);
-  const [actionMessage, setActionMessage] = useState(null);
+  const [actionToast, setActionToast] = useState(null);
+
+  // Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    projectId: null,
+    projectTitle: '',
+    loading: false,
+  });
 
   // Fetch all projects to filter by current user
   useEffect(() => {
@@ -21,9 +30,9 @@ const DashboardPage = () => {
   }, [fetchProjects]);
 
   // Filter projects owned by current user
+  const currentUserId = user?._id || user?.id;
   const myProjects = projects.filter((p) => {
     const ownerId = p.owner?._id || p.owner;
-    const currentUserId = user?._id || user?.id;
     return ownerId?.toString() === currentUserId?.toString();
   });
 
@@ -49,42 +58,63 @@ const DashboardPage = () => {
     loadCollaborations();
   }, [loadCollaborations]);
 
-  // Handle Accept/Reject collaboration request
-  const handleStatusUpdate = async (requestId, newStatus) => {
-    try {
-      await collaborationService.updateStatus(requestId, newStatus);
-      setActionMessage({
-        type: 'success',
-        text: `Request successfully marked as ${newStatus}!`,
+  // Show Toast helper
+  const showToast = (type, message) => {
+    setActionToast({ type, message });
+    setTimeout(() => setActionToast(null), 3500);
+  };
+
+  // Open Delete Modal for a Project
+  const handleOpenDeleteModal = (projectId, projectTitle) => {
+    setDeleteModal({
+      isOpen: true,
+      projectId,
+      projectTitle,
+      loading: false,
+    });
+  };
+
+  // Close Delete Modal
+  const handleCloseDeleteModal = () => {
+    if (!deleteModal.loading) {
+      setDeleteModal({
+        isOpen: false,
+        projectId: null,
+        projectTitle: '',
+        loading: false,
       });
-      // Refresh list
-      loadCollaborations();
-      setTimeout(() => setActionMessage(null), 4000);
-    } catch (err) {
-      setActionMessage({
-        type: 'error',
-        text: err.message || `Failed to ${newStatus} request`,
-      });
-      setTimeout(() => setActionMessage(null), 4000);
     }
   };
 
-  // Handle Project Delete
-  const handleDeleteProject = async (id, title) => {
-    if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
+  // Confirm and execute project deletion
+  const handleConfirmDeleteProject = async () => {
+    if (!deleteModal.projectId) return;
+
+    setDeleteModal((prev) => ({ ...prev, loading: true }));
     try {
-      await deleteProject(id);
-      setActionMessage({
-        type: 'success',
-        text: `Project "${title}" was deleted.`,
-      });
-      setTimeout(() => setActionMessage(null), 4000);
+      await deleteProject(deleteModal.projectId);
+      showToast('success', `Project "${deleteModal.projectTitle}" was deleted permanently.`);
+      handleCloseDeleteModal();
+      // Refresh list
+      fetchProjects();
     } catch (err) {
-      setActionMessage({
-        type: 'error',
-        text: err.message || 'Failed to delete project',
-      });
-      setTimeout(() => setActionMessage(null), 4000);
+      showToast('error', err.message || 'Failed to delete project');
+      setDeleteModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Handle Accept/Reject collaboration request
+  const handleStatusUpdate = async (requestId, newStatus, requesterName) => {
+    try {
+      await collaborationService.updateStatus(requestId, newStatus);
+      showToast(
+        'success',
+        `Collaboration request from ${requesterName || 'student'} marked as ${newStatus}!`
+      );
+      // Refresh collaboration lists
+      loadCollaborations();
+    } catch (err) {
+      showToast('error', err.message || `Failed to ${newStatus} request`);
     }
   };
 
@@ -105,16 +135,41 @@ const DashboardPage = () => {
 
   return (
     <div className="container page-container dashboard-page">
-      {/* Dashboard Top Header */}
+      {/* Toast Notification */}
+      {actionToast && (
+        <div className="toast-container">
+          <div className={`toast toast-${actionToast.type}`}>
+            <span className="toast-icon">
+              {actionToast.type === 'success' ? '✓' : '✕'}
+            </span>
+            <span className="toast-message">{actionToast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Reusable ConfirmModal for Project Deletion */}
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Engineering Project"
+        itemName={deleteModal.projectTitle}
+        message={`Are you sure you want to permanently delete "${deleteModal.projectTitle}"? This will also remove all associated peer comments and collaboration requests.`}
+        confirmText="Delete Project"
+        cancelText="Cancel"
+        loading={deleteModal.loading}
+        onConfirm={handleConfirmDeleteProject}
+        onCancel={handleCloseDeleteModal}
+      />
+
+      {/* Dashboard Top Header Hero */}
       <div className="dashboard-hero card">
         <div className="dashboard-hero-content">
           <div className="user-avatar-large">
             {user?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
           <div>
-            <h1 className="dashboard-greeting">Hello, {user?.name}!</h1>
+            <h1 className="dashboard-greeting">Student Portal: {user?.name}</h1>
             <p className="dashboard-user-meta">
-              <span>🏛️ {user?.department}</span>
+              <span>🏛️ {user?.department || 'Engineering'}</span>
               <span className="dot-separator">•</span>
               <span className="user-role-badge">{user?.role}</span>
               <span className="dot-separator">•</span>
@@ -124,16 +179,10 @@ const DashboardPage = () => {
         </div>
         <div className="dashboard-actions">
           <Link to="/projects/new" className="btn btn-primary">
-            + New Project
+            + Submit New Project
           </Link>
         </div>
       </div>
-
-      {actionMessage && (
-        <div className={`alert alert-${actionMessage.type} mt-3`}>
-          {actionMessage.text}
-        </div>
-      )}
 
       {/* Tabs Navigation */}
       <div className="dashboard-tabs">
@@ -157,26 +206,37 @@ const DashboardPage = () => {
         </button>
       </div>
 
-      {/* TAB 1: MY PROJECTS */}
+      {/* TAB 1: MY PROJECTS TABLE */}
       {activeTab === 'projects' && (
         <div className="dashboard-tab-content">
           {myProjects.length === 0 ? (
             <div className="card empty-state text-center">
+              <div className="empty-icon">📁</div>
               <h3>You haven't submitted any projects yet</h3>
-              <p>Showcase your engineering capstone, research, or hardware design.</p>
+              <p className="text-muted">
+                Publish your engineering capstone, research paper, hardware prototype, or software system to receive peer feedback.
+              </p>
               <Link to="/projects/new" className="btn btn-primary mt-3">
                 Create Your First Project
               </Link>
             </div>
           ) : (
             <div className="my-projects-table-wrapper card">
+              <div className="table-header-bar">
+                <h3>My Submitted Projects ({myProjects.length})</h3>
+                <Link to="/projects/new" className="btn btn-primary btn-sm">
+                  + Add Project
+                </Link>
+              </div>
+
               <table className="custom-table">
                 <thead>
                   <tr>
                     <th>Project Title</th>
                     <th>Category</th>
                     <th>Status</th>
-                    <th>Collaborators Wanted</th>
+                    <th>Seeking Teammates</th>
+                    <th>Date Added</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -185,7 +245,9 @@ const DashboardPage = () => {
                     <tr key={p._id}>
                       <td>
                         <strong>
-                          <Link to={`/projects/${p._id}`}>{p.title}</Link>
+                          <Link to={`/projects/${p._id}`} className="table-project-link">
+                            {p.title}
+                          </Link>
                         </strong>
                       </td>
                       <td>
@@ -198,28 +260,35 @@ const DashboardPage = () => {
                       </td>
                       <td>
                         {p.lookingForCollaborators ? (
-                          <span className="badge-warning">Yes</span>
+                          <span className="collab-wanted-pill">🤝 Seeking</span>
                         ) : (
                           <span className="text-muted">No</span>
                         )}
+                      </td>
+                      <td className="text-muted">
+                        {new Date(p.createdAt).toLocaleDateString()}
                       </td>
                       <td>
                         <div className="table-actions">
                           <Link
                             to={`/projects/${p._id}`}
                             className="btn btn-outline btn-sm"
+                            title="View project details"
                           >
                             View
                           </Link>
                           <Link
                             to={`/projects/edit/${p._id}`}
                             className="btn btn-secondary btn-sm"
+                            title="Edit project"
                           >
                             Edit
                           </Link>
                           <button
-                            onClick={() => handleDeleteProject(p._id, p.title)}
+                            type="button"
+                            onClick={() => handleOpenDeleteModal(p._id, p.title)}
                             className="btn btn-danger-outline btn-sm"
+                            title="Delete project"
                           >
                             Delete
                           </button>
@@ -234,7 +303,7 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* TAB 2: INCOMING REQUESTS */}
+      {/* TAB 2: INCOMING COLLABORATION REQUESTS */}
       {activeTab === 'incoming' && (
         <div className="dashboard-tab-content">
           {loadingCollabs ? (
@@ -246,8 +315,11 @@ const DashboardPage = () => {
             <div className="alert alert-error">{collabError}</div>
           ) : incomingRequests.length === 0 ? (
             <div className="card empty-state text-center">
+              <div className="empty-icon">📬</div>
               <h3>No incoming collaboration requests</h3>
-              <p>When other students request to join your projects, they will appear here.</p>
+              <p className="text-muted">
+                When other students discover your projects and request to join your team, their pitches will appear here.
+              </p>
             </div>
           ) : (
             <div className="requests-grid">
@@ -256,43 +328,76 @@ const DashboardPage = () => {
                   <div className="request-card-header">
                     <div>
                       <span className="project-badge">
-                        Project: <strong>{req.project?.title || 'Unknown Project'}</strong>
+                        Project:{' '}
+                        <strong>
+                          <Link to={`/projects/${req.project?._id}`}>
+                            {req.project?.title || 'Unknown Project'}
+                          </Link>
+                        </strong>
                       </span>
                       <h4 className="requester-name">
-                        From: {req.requester?.name} ({req.requester?.department})
+                        From: {req.requester?.name || 'Anonymous Requester'}
                       </h4>
-                      <p className="requester-email">{req.requester?.email}</p>
+                      <p className="requester-email">
+                        🏛️ {req.requester?.department || 'Engineering'} • 📧{' '}
+                        {req.requester?.email}
+                      </p>
                     </div>
                     <span className={`status-badge ${getStatusBadge(req.status)}`}>
                       {req.status}
                     </span>
                   </div>
 
-                  <p className="request-message-text">"{req.message}"</p>
+                  <p className="request-message-text">
+                    "{req.message}"
+                  </p>
 
                   <div className="request-card-footer">
                     <span className="request-date">
-                      {new Date(req.createdAt).toLocaleDateString()}
+                      Received on: {new Date(req.createdAt).toLocaleDateString()}
                     </span>
 
                     {req.status === 'pending' ? (
                       <div className="request-actions">
                         <button
-                          onClick={() => handleStatusUpdate(req._id, 'accepted')}
-                          className="btn btn-primary btn-sm"
+                          type="button"
+                          onClick={() =>
+                            handleStatusUpdate(
+                              req._id,
+                              'accepted',
+                              req.requester?.name
+                            )
+                          }
+                          className="btn btn-primary btn-sm btn-accept"
                         >
                           ✓ Accept
                         </button>
                         <button
-                          onClick={() => handleStatusUpdate(req._id, 'rejected')}
-                          className="btn btn-danger-outline btn-sm"
+                          type="button"
+                          onClick={() =>
+                            handleStatusUpdate(
+                              req._id,
+                              'rejected',
+                              req.requester?.name
+                            )
+                          }
+                          className="btn btn-danger-outline btn-sm btn-reject"
                         >
                           ✕ Reject
                         </button>
                       </div>
                     ) : (
-                      <span className="text-muted status-settled">
-                        Status: <strong>{req.status}</strong>
+                      <span className="status-settled">
+                        Status:{' '}
+                        <strong
+                          className={
+                            req.status === 'accepted'
+                              ? 'text-success'
+                              : 'text-danger'
+                          }
+                        >
+                          {req.status.toUpperCase()}
+                        </strong>
                       </span>
                     )}
                   </div>
@@ -303,20 +408,23 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* TAB 3: MY SENT REQUESTS */}
+      {/* TAB 3: MY SENT COLLABORATION REQUESTS */}
       {activeTab === 'sent' && (
         <div className="dashboard-tab-content">
           {loadingCollabs ? (
             <div className="loading-state">
               <div className="spinner"></div>
-              <p>Loading sent requests...</p>
+              <p>Loading your sent requests...</p>
             </div>
           ) : collabError ? (
             <div className="alert alert-error">{collabError}</div>
           ) : myRequests.length === 0 ? (
             <div className="card empty-state text-center">
-              <h3>You haven't requested to collaborate on any projects</h3>
-              <p>Browse the showcase and request to join projects that spark your interest.</p>
+              <div className="empty-icon">📤</div>
+              <h3>You haven't requested to join any projects yet</h3>
+              <p className="text-muted">
+                Explore student projects seeking teammates and send a collaboration pitch.
+              </p>
               <Link to="/projects" className="btn btn-primary mt-3">
                 Browse Showcase
               </Link>
@@ -329,29 +437,36 @@ const DashboardPage = () => {
                     <div>
                       <h4 className="project-title-link">
                         <Link to={`/projects/${req.project?._id}`}>
-                          {req.project?.title}
+                          {req.project?.title || 'Engineering Project'}
                         </Link>
                       </h4>
                       <p className="owner-meta">
-                        Owner: {req.project?.owner?.name} ({req.project?.owner?.department})
+                        Owner: {req.project?.owner?.name || 'Student Creator'} (
+                        {req.project?.owner?.department || 'Faculty of Engineering'})
                       </p>
                     </div>
                     <span className={`status-badge ${getStatusBadge(req.status)}`}>
-                      {req.status}
+                      {req.status === 'accepted'
+                        ? 'Accepted 🎉'
+                        : req.status === 'rejected'
+                        ? 'Declined ✕'
+                        : 'Pending Review ⏳'}
                     </span>
                   </div>
 
-                  <p className="request-message-text">My Note: "{req.message}"</p>
+                  <p className="request-message-text">
+                    My Pitch: "{req.message}"
+                  </p>
 
                   <div className="request-card-footer">
                     <span className="request-date">
-                      Sent on: {new Date(req.createdAt).toLocaleDateString()}
+                      Submitted on: {new Date(req.createdAt).toLocaleDateString()}
                     </span>
                     <Link
                       to={`/projects/${req.project?._id}`}
                       className="btn btn-outline btn-sm"
                     >
-                      View Project
+                      View Project Details
                     </Link>
                   </div>
                 </div>
