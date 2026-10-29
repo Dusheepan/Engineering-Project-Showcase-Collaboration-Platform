@@ -58,14 +58,14 @@ const ProjectFormPage = () => {
     const errs = {};
     if (!formData.title.trim()) {
       errs.title = 'Project title is required';
-    } else if (formData.title.length < 3 || formData.title.length > 120) {
-      errs.title = 'Title must be between 3 and 120 characters';
+    } else if (formData.title.length < 3 || formData.title.length > 100) {
+      errs.title = 'Title must be between 3 and 100 characters long';
     }
 
     if (!formData.description.trim()) {
       errs.description = 'Project description is required';
-    } else if (formData.description.length < 10) {
-      errs.description = 'Description must be at least 10 characters long';
+    } else if (formData.description.length < 20) {
+      errs.description = 'Description must be at least 20 characters long';
     }
 
     if (!formData.techStack.trim()) {

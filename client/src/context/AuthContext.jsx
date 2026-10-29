@@ -1,0 +1,134 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import authService from '../services/authService';
+
+const AuthContext = createContext(null);
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
+
+  /**
+   * Verify token on initial app load and retrieve fresh user profile
+   */
+  const loadUser = useCallback(async () => {
+    const savedToken = localStorage.getItem('token');
+    if (!savedToken) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const data = await authService.getMe();
+      if (data?.user) {
+        setUser(data.user);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+    } catch (err) {
+      console.warn('Session expired or invalid token:', err.message);
+      // Clean up invalid session
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
+
+  /**
+   * Log in user
+   */
+  const login = async (email, password) => {
+    setAuthError(null);
+    try {
+      const data = await authService.login(email, password);
+      const authToken = data.token;
+      const authUser = data.user;
+
+      localStorage.setItem('token', authToken);
+      localStorage.setItem('user', JSON.stringify(authUser));
+
+      setToken(authToken);
+      setUser(authUser);
+      return data;
+    } catch (err) {
+      setAuthError(err.message || 'Login failed');
+      throw err;
+    }
+  };
+
+  /**
+   * Register new user
+   */
+  const register = async (userData) => {
+    setAuthError(null);
+    try {
+      const data = await authService.register(userData);
+      const authToken = data.token;
+      const authUser = data.user;
+
+      localStorage.setItem('token', authToken);
+      localStorage.setItem('user', JSON.stringify(authUser));
+
+      setToken(authToken);
+      setUser(authUser);
+      return data;
+    } catch (err) {
+      setAuthError(err.message || 'Registration failed');
+      throw err;
+    }
+  };
+
+  /**
+   * Log out user
+   */
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    setAuthError(null);
+  };
+
+  const value = {
+    user,
+    token,
+    isAuthenticated: Boolean(token && user),
+    isAdmin: user?.role === 'admin',
+    loading,
+    authError,
+    login,
+    register,
+    logout,
+    loadUser,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+/**
+ * Custom hook to use AuthContext
+ */
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export default AuthContext;
