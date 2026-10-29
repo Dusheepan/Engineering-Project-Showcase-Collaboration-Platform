@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 /**
- * Engineering Project Schema
- * Represents student engineering projects displayed in the showcase
+ * Project Schema
+ * Represents engineering showcase projects
  */
 const ProjectSchema = new mongoose.Schema(
   {
@@ -10,64 +10,64 @@ const ProjectSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Project title is required'],
       trim: true,
+      minlength: [3, 'Title must be at least 3 characters long'],
       maxlength: [120, 'Title cannot exceed 120 characters'],
     },
     description: {
       type: String,
       required: [true, 'Project description is required'],
       trim: true,
+      minlength: [10, 'Description must be at least 10 characters long'],
+      maxlength: [3000, 'Description cannot exceed 3000 characters'],
     },
-    department: {
-      type: String,
-      required: [true, 'Engineering department is required'],
-      enum: [
-        'Computer Engineering',
-        'Electrical & Electronic Engineering',
-        'Mechanical Engineering',
-        'Civil Engineering',
-        'Mechatronics Engineering',
-        'Chemical Engineering',
-        'Other',
-      ],
-      default: 'Computer Engineering',
-    },
-    technologies: {
+    techStack: {
       type: [String],
-      required: [true, 'At least one technology must be specified'],
+      required: [true, 'Tech stack is required'],
       validate: {
         validator: function (val) {
           return Array.isArray(val) && val.length > 0;
         },
-        message: 'Project must include at least one technology/tool',
+        message: 'Project must include at least one technology in techStack',
       },
     },
-    teamMembers: {
-      type: [String],
-      default: [],
-    },
-    supervisor: {
+    category: {
       type: String,
-      trim: true,
-      default: '',
+      required: [true, 'Category is required'],
+      enum: {
+        values: ['Web', 'Mobile', 'AI/ML', 'Embedded', 'IoT', 'Other'],
+        message:
+          '{VALUE} is not a valid category (allowed: Web, Mobile, AI/ML, Embedded, IoT, Other)',
+      },
     },
     githubUrl: {
       type: String,
       trim: true,
       default: '',
+      maxlength: [255, 'GitHub URL cannot exceed 255 characters'],
     },
-    liveDemoUrl: {
+    demoUrl: {
       type: String,
       trim: true,
       default: '',
+      maxlength: [255, 'Demo URL cannot exceed 255 characters'],
     },
     status: {
       type: String,
-      enum: ['Planning', 'In Progress', 'Completed', 'Under Review'],
-      default: 'In Progress',
+      enum: {
+        values: ['Idea', 'In Progress', 'Completed'],
+        message:
+          '{VALUE} is not a valid status (allowed: Idea, In Progress, Completed)',
+      },
+      default: 'Idea',
     },
-    year: {
-      type: Number,
-      default: new Date().getFullYear(),
+    lookingForCollaborators: {
+      type: Boolean,
+      default: false,
+    },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Project owner is required'],
     },
   },
   {
@@ -75,7 +75,11 @@ const ProjectSchema = new mongoose.Schema(
   }
 );
 
-// Add text index for search functionality on title, description, and technologies
-ProjectSchema.index({ title: 'text', description: 'text', department: 'text' });
+// Indexes on Project.title and Project.category
+ProjectSchema.index({ title: 1 });
+ProjectSchema.index({ category: 1 });
+
+// Composite / text index for full-text searching across title, description, and techStack
+ProjectSchema.index({ title: 'text', description: 'text', techStack: 'text' });
 
 module.exports = mongoose.model('Project', ProjectSchema);

@@ -1,41 +1,56 @@
 const Project = require('../models/Project');
+const User = require('../models/User');
 const { validationResult } = require('express-validator');
 
 /**
- * @desc    Get all projects (with search, filter, and sorting)
+ * @desc    Get all projects (with search, category/status filters, and sorting)
  * @route   GET /api/projects
  * @access  Public
  */
 const getProjects = async (req, res, next) => {
   try {
-    const { search, department, status, sortBy = 'createdAt', order = 'desc' } = req.query;
+    const {
+      search,
+      category,
+      status,
+      lookingForCollaborators,
+      sortBy = 'createdAt',
+      order = 'desc',
+    } = req.query;
 
     const query = {};
 
-    // Search filter across title and description
+    // Search filter across title, description, or techStack
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
-        { technologies: { $regex: search, $options: 'i' } },
+        { techStack: { $regex: search, $options: 'i' } },
       ];
     }
 
-    // Filter by department
-    if (department && department !== 'All') {
-      query.department = department;
+    // Filter by category (enum: Web, Mobile, AI/ML, Embedded, IoT, Other)
+    if (category && category !== 'All') {
+      query.category = category;
     }
 
-    // Filter by project status
+    // Filter by status (enum: Idea, In Progress, Completed)
     if (status && status !== 'All') {
       query.status = status;
     }
 
-    // Sort order
+    // Filter by lookingForCollaborators flag
+    if (lookingForCollaborators !== undefined && lookingForCollaborators !== '') {
+      query.lookingForCollaborators = lookingForCollaborators === 'true';
+    }
+
+    // Sorting
     const sortOptions = {};
     sortOptions[sortBy] = order === 'asc' ? 1 : -1;
 
-    const projects = await Project.find(query).sort(sortOptions);
+    const projects = await Project.find(query)
+      .populate('owner', 'name email role department')
+      .sort(sortOptions);
 
     res.status(200).json({
       success: true,
@@ -48,13 +63,16 @@ const getProjects = async (req, res, next) => {
 };
 
 /**
- * @desc    Get single project by ID
+ * @desc    Get single project by ID with owner populated
  * @route   GET /api/projects/:id
  * @access  Public
  */
 const getProjectById = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id);
+    const project = await Project.findById(req.params.id).populate(
+      'owner',
+      'name email role department'
+    );
 
     if (!project) {
       return res.status(404).json({
@@ -79,7 +97,6 @@ const getProjectById = async (req, res, next) => {
  */
 const createProject = async (req, res, next) => {
   try {
-    // Validate request using express-validator
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -92,47 +109,57 @@ const createProject = async (req, res, next) => {
     const {
       title,
       description,
-      department,
-      technologies,
-      teamMembers,
-      supervisor,
+      techStack,
+      category,
       githubUrl,
-      liveDemoUrl,
+      demoUrl,
       status,
-      year,
+      lookingForCollaborators,
+      owner,
     } = req.body;
 
-    // Ensure technologies is array
-    const formattedTechnologies = Array.isArray(technologies)
-      ? technologies
-      : typeof technologies === 'string'
-      ? technologies.split(',').map((t) => t.trim()).filter(Boolean)
+    // Format techStack into an array of strings
+    const formattedTechStack = Array.isArray(techStack)
+      ? techStack
+      : typeof techStack === 'string'
+      ? techStack.split(',').map((t) => t.trim()).filter(Boolean)
       : [];
 
-    // Ensure teamMembers is array
-    const formattedTeamMembers = Array.isArray(teamMembers)
-      ? teamMembers
-      : typeof teamMembers === 'string'
-      ? teamMembers.split(',').map((m) => m.trim()).filter(Boolean)
-      : [];
+    // Resolve project owner: use body.owner, req.user._id, or default to the first user
+    let projectOwner = owner || req.user?._id;
+    if (!projectOwner) {
+      const defaultUser = await User.findOne();
+      if (defaultUser) {
+        projectOwner = defaultUser._id;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'No user exists to assign as project owner. Run seed script first.',
+        });
+      }
+    }
 
     const project = await Project.create({
       title,
       description,
-      department,
-      technologies: formattedTechnologies,
-      teamMembers: formattedTeamMembers,
-      supervisor,
-      githubUrl,
-      liveDemoUrl,
-      status,
-      year: year || new Date().getFullYear(),
+      techStack: formattedTechStack,
+      category: category || 'Other',
+      githubUrl: githubUrl || '',
+      demoUrl: demoUrl || '',
+      status: status || 'Idea',
+      lookingForCollaborators: Boolean(lookingForCollaborators),
+      owner: projectOwner,
     });
+
+    const populatedProject = await project.populate(
+      'owner',
+      'name email role department'
+    );
 
     res.status(201).json({
       success: true,
       message: 'Project created successfully',
-      data: project,
+      data: populatedProject,
     });
   } catch (error) {
     next(error);
@@ -155,7 +182,7 @@ const updateProject = async (req, res, next) => {
       });
     }
 
-    let project = await Project.findById(req.params.id);
+    const project = await Project.findById(req.params.id);
 
     if (!project) {
       return res.status(404).json({
@@ -164,30 +191,25 @@ const updateProject = async (req, res, next) => {
       });
     }
 
-    // Process technologies and team members if strings are provided
     const updateData = { ...req.body };
-    if (typeof updateData.technologies === 'string') {
-      updateData.technologies = updateData.technologies
+
+    // Format techStack if string provided
+    if (typeof updateData.techStack === 'string') {
+      updateData.techStack = updateData.techStack
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean);
     }
-    if (typeof updateData.teamMembers === 'string') {
-      updateData.teamMembers = updateData.teamMembers
-        .split(',')
-        .map((m) => m.trim())
-        .filter(Boolean);
-    }
 
-    project = await Project.findByIdAndUpdate(req.params.id, updateData, {
+    const updated = await Project.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
-    });
+    }).populate('owner', 'name email role department');
 
     res.status(200).json({
       success: true,
       message: 'Project updated successfully',
-      data: project,
+      data: updated,
     });
   } catch (error) {
     next(error);

@@ -60,6 +60,8 @@ const ProjectDetailPage = () => {
     );
   }
 
+  const techs = project.techStack || project.technologies || [];
+
   return (
     <div className="container page-container">
       <div className="breadcrumb">
@@ -69,12 +71,14 @@ const ProjectDetailPage = () => {
       <div className="card project-detail-card">
         <div className="detail-header">
           <div>
-            <span className="department-tag">{project.department}</span>
+            <span className="department-tag">{project.category || 'General'}</span>
             <span className="badge-default ml-2">Status: {project.status}</span>
+            {project.lookingForCollaborators && (
+              <span className="badge-warning ml-2">🤝 Seeking Collaborators</span>
+            )}
             <h1 className="detail-title">{project.title}</h1>
             <p className="detail-meta">
-              Academic Year: <strong>{project.year}</strong> | Created:{' '}
-              {new Date(project.createdAt).toLocaleDateString()}
+              Created: {new Date(project.createdAt).toLocaleDateString()}
             </p>
           </div>
 
@@ -97,9 +101,9 @@ const ProjectDetailPage = () => {
           </div>
 
           <div className="detail-section">
-            <h3>Technologies & Tools</h3>
+            <h3>Tech Stack & Tools</h3>
             <div className="tech-stack-tags">
-              {project.technologies?.map((tech, idx) => (
+              {techs.map((tech, idx) => (
                 <span key={idx} className="tech-pill large">
                   {tech}
                 </span>
@@ -109,25 +113,29 @@ const ProjectDetailPage = () => {
 
           <div className="detail-grid-info">
             <div className="info-block">
-              <h4>👥 Team Members</h4>
-              {project.teamMembers && project.teamMembers.length > 0 ? (
-                <ul className="member-list">
-                  {project.teamMembers.map((member, idx) => (
-                    <li key={idx}>{member}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted">Not specified</p>
+              <h4>👤 Project Owner</h4>
+              <p>
+                <strong>{project.owner?.name || 'Student Creator'}</strong>
+              </p>
+              {project.owner?.department && (
+                <p className="text-muted">{project.owner.department}</p>
+              )}
+              {project.owner?.email && (
+                <p className="text-muted">{project.owner.email}</p>
               )}
             </div>
 
             <div className="info-block">
-              <h4>🎓 Project Supervisor</h4>
-              <p>{project.supervisor || 'Not assigned'}</p>
+              <h4>🎯 Collaboration Status</h4>
+              <p>
+                {project.lookingForCollaborators
+                  ? ' Open for collaboration! Interested students are encouraged to reach out.'
+                  : ' Not currently seeking new collaborators.'}
+              </p>
             </div>
           </div>
 
-          {(project.githubUrl || project.liveDemoUrl) && (
+          {(project.githubUrl || project.demoUrl) && (
             <div className="detail-links">
               <h3>Project Links</h3>
               <div className="link-buttons">
@@ -141,9 +149,9 @@ const ProjectDetailPage = () => {
                     📦 View Source Code (GitHub)
                   </a>
                 )}
-                {project.liveDemoUrl && (
+                {project.demoUrl && (
                   <a
-                    href={project.liveDemoUrl}
+                    href={project.demoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary"

@@ -2,17 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useProjects } from '../context/ProjectContext';
 
-const DEPARTMENTS = [
-  'Computer Engineering',
-  'Electrical & Electronic Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Mechatronics Engineering',
-  'Chemical Engineering',
-  'Other',
-];
-
-const STATUSES = ['Planning', 'In Progress', 'Completed', 'Under Review'];
+const CATEGORIES = ['Web', 'Mobile', 'AI/ML', 'Embedded', 'IoT', 'Other'];
+const STATUSES = ['Idea', 'In Progress', 'Completed'];
 
 const ProjectFormPage = () => {
   const { id } = useParams();
@@ -23,14 +14,12 @@ const ProjectFormPage = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    department: 'Computer Engineering',
-    technologies: '',
-    teamMembers: '',
-    supervisor: '',
+    category: 'Web',
+    techStack: '',
     githubUrl: '',
-    liveDemoUrl: '',
-    status: 'In Progress',
-    year: new Date().getFullYear(),
+    demoUrl: '',
+    status: 'Idea',
+    lookingForCollaborators: false,
   });
 
   const [errors, setErrors] = useState({});
@@ -43,21 +32,16 @@ const ProjectFormPage = () => {
       const load = async () => {
         try {
           const data = await fetchProjectById(id);
+          const techs = data.techStack || data.technologies || [];
           setFormData({
             title: data.title || '',
             description: data.description || '',
-            department: data.department || 'Computer Engineering',
-            technologies: Array.isArray(data.technologies)
-              ? data.technologies.join(', ')
-              : '',
-            teamMembers: Array.isArray(data.teamMembers)
-              ? data.teamMembers.join(', ')
-              : '',
-            supervisor: data.supervisor || '',
+            category: data.category || 'Web',
+            techStack: Array.isArray(techs) ? techs.join(', ') : '',
             githubUrl: data.githubUrl || '',
-            liveDemoUrl: data.liveDemoUrl || '',
-            status: data.status || 'In Progress',
-            year: data.year || new Date().getFullYear(),
+            demoUrl: data.demoUrl || data.liveDemoUrl || '',
+            status: data.status || 'Idea',
+            lookingForCollaborators: Boolean(data.lookingForCollaborators),
           });
         } catch (err) {
           setErrors({ form: 'Failed to load project details for editing.' });
@@ -74,24 +58,26 @@ const ProjectFormPage = () => {
     const errs = {};
     if (!formData.title.trim()) {
       errs.title = 'Project title is required';
-    } else if (formData.title.length > 120) {
-      errs.title = 'Title must be 120 characters or fewer';
+    } else if (formData.title.length < 3 || formData.title.length > 120) {
+      errs.title = 'Title must be between 3 and 120 characters';
     }
 
     if (!formData.description.trim()) {
       errs.description = 'Project description is required';
+    } else if (formData.description.length < 10) {
+      errs.description = 'Description must be at least 10 characters long';
     }
 
-    if (!formData.technologies.trim()) {
-      errs.technologies = 'Please list at least one technology (comma-separated)';
+    if (!formData.techStack.trim()) {
+      errs.techStack = 'Please list at least one technology (comma-separated)';
     }
 
     if (formData.githubUrl && !formData.githubUrl.startsWith('http')) {
       errs.githubUrl = 'GitHub link must begin with http:// or https://';
     }
 
-    if (formData.liveDemoUrl && !formData.liveDemoUrl.startsWith('http')) {
-      errs.liveDemoUrl = 'Live demo link must begin with http:// or https://';
+    if (formData.demoUrl && !formData.demoUrl.startsWith('http')) {
+      errs.demoUrl = 'Demo link must begin with http:// or https://';
     }
 
     setErrors(errs);
@@ -99,8 +85,11 @@ const ProjectFormPage = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
     // Clear error for field being edited
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
@@ -114,16 +103,17 @@ const ProjectFormPage = () => {
     setSubmitting(true);
     try {
       const payload = {
-        ...formData,
-        technologies: formData.technologies
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        techStack: formData.techStack
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean),
-        teamMembers: formData.teamMembers
-          .split(',')
-          .map((m) => m.trim())
-          .filter(Boolean),
-        year: Number(formData.year),
+        githubUrl: formData.githubUrl,
+        demoUrl: formData.demoUrl,
+        status: formData.status,
+        lookingForCollaborators: formData.lookingForCollaborators,
       };
 
       if (isEditing) {
@@ -165,8 +155,8 @@ const ProjectFormPage = () => {
         </h1>
         <p className="page-subtitle">
           {isEditing
-            ? 'Update the project specifications and documentation.'
-            : 'Fill in the details below to add your project to the showcase.'}
+            ? 'Update the project specifications and links.'
+            : 'Fill in the details below to publish your project in the showcase.'}
         </p>
 
         {errors.form && <div className="alert alert-error">{errors.form}</div>}
@@ -189,22 +179,22 @@ const ProjectFormPage = () => {
             {errors.title && <div className="invalid-feedback">{errors.title}</div>}
           </div>
 
-          {/* Department & Status */}
+          {/* Category & Status */}
           <div className="form-row">
             <div className="form-group flex-1">
-              <label htmlFor="department">
-                Department <span className="required">*</span>
+              <label htmlFor="category">
+                Category <span className="required">*</span>
               </label>
               <select
-                id="department"
-                name="department"
+                id="category"
+                name="category"
                 className="form-control"
-                value={formData.department}
+                value={formData.category}
                 onChange={handleChange}
               >
-                {DEPARTMENTS.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
                   </option>
                 ))}
               </select>
@@ -226,18 +216,21 @@ const ProjectFormPage = () => {
                 ))}
               </select>
             </div>
+          </div>
 
-            <div className="form-group flex-small">
-              <label htmlFor="year">Year</label>
-              <input
-                id="year"
-                name="year"
-                type="number"
-                className="form-control"
-                value={formData.year}
-                onChange={handleChange}
-              />
-            </div>
+          {/* Looking For Collaborators Checkbox */}
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <input
+              id="lookingForCollaborators"
+              name="lookingForCollaborators"
+              type="checkbox"
+              checked={formData.lookingForCollaborators}
+              onChange={handleChange}
+              style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+            />
+            <label htmlFor="lookingForCollaborators" style={{ margin: 0, cursor: 'pointer' }}>
+              🤝 Looking for Collaborators / Teammates
+            </label>
           </div>
 
           {/* Description */}
@@ -250,7 +243,7 @@ const ProjectFormPage = () => {
               name="description"
               rows={5}
               className={`form-control ${errors.description ? 'is-invalid' : ''}`}
-              placeholder="Describe the problem, proposed solution, system architecture, and outcomes..."
+              placeholder="Describe problem statement, proposed engineering solution, and outcomes..."
               value={formData.description}
               onChange={handleChange}
             />
@@ -259,54 +252,23 @@ const ProjectFormPage = () => {
             )}
           </div>
 
-          {/* Technologies */}
+          {/* Tech Stack */}
           <div className="form-group">
-            <label htmlFor="technologies">
-              Technologies Used <span className="required">*</span> (Comma-separated)
+            <label htmlFor="techStack">
+              Tech Stack <span className="required">*</span> (Comma-separated)
             </label>
             <input
-              id="technologies"
-              name="technologies"
+              id="techStack"
+              name="techStack"
               type="text"
-              className={`form-control ${errors.technologies ? 'is-invalid' : ''}`}
-              placeholder="e.g. React, Node.js, ROS, Arduino, Python, TensorFlow"
-              value={formData.technologies}
+              className={`form-control ${errors.techStack ? 'is-invalid' : ''}`}
+              placeholder="e.g. React, Node.js, ROS2, PyTorch, C++, Arduino"
+              value={formData.techStack}
               onChange={handleChange}
             />
-            {errors.technologies && (
-              <div className="invalid-feedback">{errors.technologies}</div>
+            {errors.techStack && (
+              <div className="invalid-feedback">{errors.techStack}</div>
             )}
-          </div>
-
-          {/* Team Members & Supervisor */}
-          <div className="form-row">
-            <div className="form-group flex-1">
-              <label htmlFor="teamMembers">
-                Team Members (Comma-separated)
-              </label>
-              <input
-                id="teamMembers"
-                name="teamMembers"
-                type="text"
-                className="form-control"
-                placeholder="e.g. John Doe (EG/2021/001), Jane Smith (EG/2021/002)"
-                value={formData.teamMembers}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="form-group flex-1">
-              <label htmlFor="supervisor">Supervisor / Mentor</label>
-              <input
-                id="supervisor"
-                name="supervisor"
-                type="text"
-                className="form-control"
-                placeholder="e.g. Dr. A. Fernando"
-                value={formData.supervisor}
-                onChange={handleChange}
-              />
-            </div>
           </div>
 
           {/* Links: GitHub & Demo */}
@@ -328,18 +290,18 @@ const ProjectFormPage = () => {
             </div>
 
             <div className="form-group flex-1">
-              <label htmlFor="liveDemoUrl">Live Demo URL</label>
+              <label htmlFor="demoUrl">Live Demo URL</label>
               <input
-                id="liveDemoUrl"
-                name="liveDemoUrl"
+                id="demoUrl"
+                name="demoUrl"
                 type="url"
-                className={`form-control ${errors.liveDemoUrl ? 'is-invalid' : ''}`}
-                placeholder="https://demo.example.com"
-                value={formData.liveDemoUrl}
+                className={`form-control ${errors.demoUrl ? 'is-invalid' : ''}`}
+                placeholder="https://demo.example.edu"
+                value={formData.demoUrl}
                 onChange={handleChange}
               />
-              {errors.liveDemoUrl && (
-                <div className="invalid-feedback">{errors.liveDemoUrl}</div>
+              {errors.demoUrl && (
+                <div className="invalid-feedback">{errors.demoUrl}</div>
               )}
             </div>
           </div>

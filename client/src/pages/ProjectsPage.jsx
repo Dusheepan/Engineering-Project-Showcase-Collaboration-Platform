@@ -3,25 +3,16 @@ import { Link } from 'react-router-dom';
 import { useProjects } from '../context/ProjectContext';
 import ProjectCard from '../components/ProjectCard';
 
-const DEPARTMENTS = [
-  'All',
-  'Computer Engineering',
-  'Electrical & Electronic Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Mechatronics Engineering',
-  'Chemical Engineering',
-  'Other',
-];
-
-const STATUSES = ['All', 'In Progress', 'Completed', 'Planning', 'Under Review'];
+const CATEGORIES = ['All', 'Web', 'Mobile', 'AI/ML', 'Embedded', 'IoT', 'Other'];
+const STATUSES = ['All', 'Idea', 'In Progress', 'Completed'];
 
 const ProjectsPage = () => {
   const { projects, loading, error, fetchProjects, deleteProject } = useProjects();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDept, setSelectedDept] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
+  const [onlyCollaborators, setOnlyCollaborators] = useState(false);
   const [sortBy, setSortBy] = useState('createdAt');
   const [order, setOrder] = useState('desc');
   const [notification, setNotification] = useState(null);
@@ -31,18 +22,29 @@ const ProjectsPage = () => {
     const delayDebounceFn = setTimeout(() => {
       fetchProjects({
         search: searchTerm,
-        department: selectedDept,
+        category: selectedCategory,
         status: selectedStatus,
+        lookingForCollaborators: onlyCollaborators ? 'true' : '',
         sortBy,
         order,
       });
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, selectedDept, selectedStatus, sortBy, order, fetchProjects]);
+  }, [
+    searchTerm,
+    selectedCategory,
+    selectedStatus,
+    onlyCollaborators,
+    sortBy,
+    order,
+    fetchProjects,
+  ]);
 
   const handleDelete = async (id, title) => {
-    const confirmed = window.confirm(`Are you sure you want to delete the project "${title}"?`);
+    const confirmed = window.confirm(
+      `Are you sure you want to delete the project "${title}"?`
+    );
     if (!confirmed) return;
 
     try {
@@ -90,23 +92,23 @@ const ProjectsPage = () => {
               id="search"
               type="text"
               className="form-control"
-              placeholder="Search by title, description, or tech..."
+              placeholder="Search title, description, tech stack..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="department">Department</label>
+            <label htmlFor="category">Category</label>
             <select
-              id="department"
+              id="category"
               className="form-control"
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
             >
-              {DEPARTMENTS.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
                 </option>
               ))}
             </select>
@@ -146,6 +148,19 @@ const ProjectsPage = () => {
               <option value="title-desc">Title (Z - A)</option>
             </select>
           </div>
+        </div>
+
+        <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <input
+            id="onlyCollaborators"
+            type="checkbox"
+            checked={onlyCollaborators}
+            onChange={(e) => setOnlyCollaborators(e.target.checked)}
+            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+          />
+          <label htmlFor="onlyCollaborators" style={{ cursor: 'pointer', fontSize: '0.9rem', userSelect: 'none' }}>
+            🤝 Show only projects looking for collaborators
+          </label>
         </div>
       </div>
 
