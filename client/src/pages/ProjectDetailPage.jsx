@@ -11,6 +11,7 @@ const ProjectDetailPage = () => {
   const { fetchProjectById, deleteProject } = useProjects();
   const { user, isAuthenticated, isAdmin } = useAuth();
 
+  // Project state
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,12 +22,14 @@ const ProjectDetailPage = () => {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState(null);
 
-  // Collaboration request state
-  const [showCollabForm, setShowCollabForm] = useState(false);
+  // Collaboration Modal state
+  const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
   const [collabMessage, setCollabMessage] = useState('');
   const [submittingCollab, setSubmittingCollab] = useState(false);
-  const [collabFeedback, setCollabFeedback] = useState(null);
+  const [collabError, setCollabError] = useState(null);
+  const [toast, setToast] = useState(null);
 
+  // Load project details
   const loadProject = useCallback(async () => {
     try {
       setLoading(true);
@@ -39,6 +42,7 @@ const ProjectDetailPage = () => {
     }
   }, [id, fetchProjectById]);
 
+  // Load comments
   const loadComments = useCallback(async () => {
     try {
       const res = await projectService.getComments(id);
@@ -53,19 +57,25 @@ const ProjectDetailPage = () => {
     loadComments();
   }, [loadProject, loadComments]);
 
-  // Check if current user is the owner
+  // Ownership & Permission Logic
   const currentUserId = user?._id || user?.id;
   const projectOwnerId = project?.owner?._id || project?.owner;
   const isOwner = Boolean(
-    currentUserId && projectOwnerId && currentUserId.toString() === projectOwnerId.toString()
+    currentUserId &&
+      projectOwnerId &&
+      currentUserId.toString() === projectOwnerId.toString()
   );
   const canModify = isOwner || isAdmin;
 
+  // Handle Project Delete
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${project.title}" permanently?`)) return;
+    if (!window.confirm(`Are you sure you want to permanently delete "${project.title}"?`)) {
+      return;
+    }
     try {
       await deleteProject(id);
-      navigate('/projects');
+      setToast({ type: 'success', message: 'Project was deleted successfully.' });
+      setTimeout(() => navigate('/projects'), 1000);
     } catch (err) {
       alert(`Failed to delete project: ${err.message}`);
     }
@@ -82,6 +92,8 @@ const ProjectDetailPage = () => {
       const res = await projectService.addComment(id, newComment.trim());
       setComments((prev) => [res.data, ...prev]);
       setNewComment('');
+      setToast({ type: 'success', message: 'Comment posted successfully!' });
+      setTimeout(() => setToast(null), 3000);
     } catch (err) {
       setCommentError(err.message || 'Failed to post comment');
     } finally {
@@ -89,45 +101,55 @@ const ProjectDetailPage = () => {
     }
   };
 
-  // Handle Comment Deletion
+  // Handle Comment Deletion (Author or Admin only)
   const handleDeleteComment = async (commentId) => {
     if (!window.confirm('Delete this comment?')) return;
     try {
       await commentService.deleteComment(commentId);
       setComments((prev) => prev.filter((c) => c._id !== commentId));
+      setToast({ type: 'success', message: 'Comment removed.' });
+      setTimeout(() => setToast(null), 3000);
     } catch (err) {
       alert(`Failed to delete comment: ${err.message}`);
     }
   };
 
-  // Handle Collaboration Request Submission
+  // Handle Collaboration Request Modal Submission
   const handleSendCollaboration = async (e) => {
     e.preventDefault();
     if (!collabMessage.trim() || collabMessage.trim().length < 5) {
-      setCollabFeedback({
-        type: 'error',
-        message: 'Message must be at least 5 characters long.',
-      });
+      setCollabError('Please provide a message with at least 5 characters.');
       return;
     }
 
     setSubmittingCollab(true);
-    setCollabFeedback(null);
+    setCollabError(null);
     try {
       await projectService.requestCollaboration(id, collabMessage.trim());
-      setCollabFeedback({
+      setToast({
         type: 'success',
-        message: 'Collaboration request sent successfully to the project owner!',
+        message: 'Collaboration request sent successfully to project owner!',
       });
+      setIsCollabModalOpen(false);
       setCollabMessage('');
-      setTimeout(() => setShowCollabForm(false), 2500);
+      setTimeout(() => setToast(null), 4000);
     } catch (err) {
-      setCollabFeedback({
-        type: 'error',
-        message: err.message || 'Failed to submit collaboration request.',
-      });
+      setCollabError(err.message || 'Failed to submit collaboration request.');
     } finally {
       setSubmittingCollab(false);
+    }
+  };
+
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'Completed':
+        return 'badge-success';
+      case 'In Progress':
+        return 'badge-info';
+      case 'Idea':
+        return 'badge-warning';
+      default:
+        return 'badge-default';
     }
   };
 
@@ -146,7 +168,7 @@ const ProjectDetailPage = () => {
     return (
       <div className="container page-container">
         <div className="alert alert-error">
-          <p>{error || 'Project not found'}</p>
+          <p>⚠️ {error || 'Project not found'}</p>
           <Link to="/projects" className="btn btn-outline btn-sm mt-2">
             Back to Showcase
           </Link>
@@ -159,6 +181,17 @@ const ProjectDetailPage = () => {
 
   return (
     <div className="container page-container project-detail-page">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="toast-container">
+          <div className={`toast toast-${toast.type}`}>
+            <span className="toast-icon">✓</span>
+            <span className="toast-message">{toast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Breadcrumb Navigation */}
       <div className="breadcrumb">
         <Link to="/projects">← Back to Showcase</Link>
       </div>
@@ -167,24 +200,37 @@ const ProjectDetailPage = () => {
         {/* Detail Header */}
         <div className="detail-header">
           <div>
-            <span className="department-tag">{project.category || 'General'}</span>
-            <span className="badge-default ml-2">Status: {project.status}</span>
+            <span className="department-tag">{project.category || 'Other'}</span>
+            <span className={`status-badge ml-2 ${getStatusBadgeClass(project.status)}`}>
+              Status: {project.status}
+            </span>
             {project.lookingForCollaborators && (
-              <span className="badge-warning ml-2">🤝 Seeking Collaborators</span>
+              <span className="collab-wanted-pill ml-2">
+                🤝 Seeking Collaborators
+              </span>
             )}
             <h1 className="detail-title">{project.title}</h1>
             <p className="detail-meta">
-              Created: {new Date(project.createdAt).toLocaleDateString()}
+              Published on: {new Date(project.createdAt).toLocaleDateString()}
             </p>
           </div>
 
+          {/* Edit/Delete Buttons: Visible ONLY to Owner or Admin */}
           {canModify && (
             <div className="detail-actions">
-              <Link to={`/projects/edit/${project._id}`} className="btn btn-secondary">
+              <Link
+                to={`/projects/edit/${project._id}`}
+                className="btn btn-secondary"
+                title="Edit Project"
+              >
                 ✏️ Edit Project
               </Link>
-              <button onClick={handleDelete} className="btn btn-danger-outline">
-                🗑️ Delete
+              <button
+                onClick={handleDelete}
+                className="btn btn-danger-outline"
+                title="Delete Project"
+              >
+                🗑️ Delete Project
               </button>
             </div>
           )}
@@ -194,11 +240,13 @@ const ProjectDetailPage = () => {
 
         {/* Detail Body */}
         <div className="detail-body">
+          {/* Full Project Description */}
           <div className="detail-section">
             <h3>Project Overview</h3>
             <p className="description-text">{project.description}</p>
           </div>
 
+          {/* Tech Stack Chips */}
           <div className="detail-section">
             <h3>Tech Stack & Tools</h3>
             <div className="tech-stack-tags">
@@ -210,37 +258,51 @@ const ProjectDetailPage = () => {
             </div>
           </div>
 
+          {/* Owner & Collaboration Grid */}
           <div className="detail-grid-info">
+            {/* Owner Info Box */}
             <div className="info-block">
               <h4>👤 Project Owner</h4>
-              <p>
+              <p className="owner-title-large">
                 <strong>{project.owner?.name || 'Student Creator'}</strong>
               </p>
               {project.owner?.department && (
-                <p className="text-muted">{project.owner.department}</p>
+                <p className="text-muted">🏛️ {project.owner.department}</p>
               )}
               {project.owner?.email && (
-                <p className="text-muted">{project.owner.email}</p>
+                <p className="text-muted">📧 {project.owner.email}</p>
+              )}
+              {project.owner?.role && (
+                <span className="user-role-tag mt-1">Role: {project.owner.role}</span>
               )}
             </div>
 
+            {/* Collaboration Status & Action */}
             <div className="info-block">
               <h4>🎯 Collaboration Status</h4>
               <p>
                 {project.lookingForCollaborators
-                  ? ' Open for collaboration! Interested students are encouraged to connect.'
-                  : ' Not currently seeking new collaborators.'}
+                  ? 'This project is actively welcoming new student collaborators and contributors.'
+                  : 'This project is not currently seeking new collaborators.'}
               </p>
 
-              {/* Collaboration CTA button */}
-              {project.lookingForCollaborators && !isOwner && (
-                <div className="mt-2">
-                  {isAuthenticated ? (
+              {/* Collaborate Action Button */}
+              {project.lookingForCollaborators && (
+                <div className="mt-3">
+                  {isOwner ? (
+                    <div className="owner-status-note">
+                      👑 You are the owner of this project. Check your{' '}
+                      <Link to="/dashboard">Dashboard</Link> to view incoming requests.
+                    </div>
+                  ) : isAuthenticated ? (
                     <button
-                      onClick={() => setShowCollabForm((prev) => !prev)}
-                      className="btn btn-primary btn-sm"
+                      onClick={() => {
+                        setCollabError(null);
+                        setIsCollabModalOpen(true);
+                      }}
+                      className="btn btn-primary"
                     >
-                      {showCollabForm ? '✕ Close Request Form' : '🤝 Request to Join Project'}
+                      🤝 Request to Collaborate
                     </button>
                   ) : (
                     <Link to="/login" className="btn btn-outline btn-sm">
@@ -252,52 +314,7 @@ const ProjectDetailPage = () => {
             </div>
           </div>
 
-          {/* Collaboration Request Form Box */}
-          {showCollabForm && (
-            <div className="card collab-form-box mt-3 mb-3">
-              <h4>Send Collaboration Request</h4>
-              <p className="text-muted">
-                Describe your skills and what you'd like to contribute to this project.
-              </p>
-
-              {collabFeedback && (
-                <div className={`alert alert-${collabFeedback.type}`}>
-                  {collabFeedback.message}
-                </div>
-              )}
-
-              <form onSubmit={handleSendCollaboration} className="mt-2">
-                <div className="form-group">
-                  <textarea
-                    rows={3}
-                    className="form-control"
-                    placeholder="e.g. I have experience with ROS2 and computer vision and would love to help optimize the drone inference model..."
-                    value={collabMessage}
-                    onChange={(e) => setCollabMessage(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-actions">
-                  <button
-                    type="submit"
-                    disabled={submittingCollab}
-                    className="btn btn-primary btn-sm"
-                  >
-                    {submittingCollab ? 'Sending...' : 'Send Request'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCollabForm(false)}
-                    className="btn btn-outline btn-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* Links: GitHub & Demo */}
+          {/* Public Repository & Live Demo Links */}
           {(project.githubUrl || project.demoUrl) && (
             <div className="detail-links">
               <h3>Project Links</h3>
@@ -329,11 +346,11 @@ const ProjectDetailPage = () => {
 
         <hr className="divider" />
 
-        {/* COMMENTS SECTION */}
+        {/* Comments Section */}
         <div className="comments-section">
           <h3>💬 Peer Discussion & Reviews ({comments.length})</h3>
 
-          {/* Add Comment Form */}
+          {/* Add-Comment Form */}
           {isAuthenticated ? (
             <form onSubmit={handleAddComment} className="comment-form mt-3 mb-4">
               {commentError && <div className="alert alert-error">{commentError}</div>}
@@ -341,7 +358,7 @@ const ProjectDetailPage = () => {
                 <textarea
                   rows={3}
                   className="form-control"
-                  placeholder="Leave constructive feedback, technical questions, or peer review notes..."
+                  placeholder="Share constructive feedback, engineering insights, or ask technical questions..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   required
@@ -352,15 +369,15 @@ const ProjectDetailPage = () => {
                 disabled={submittingComment}
                 className="btn btn-primary btn-sm"
               >
-                {submittingComment ? 'Posting...' : 'Post Comment'}
+                {submittingComment ? 'Posting Comment...' : 'Post Comment'}
               </button>
             </form>
           ) : (
             <div className="comment-login-prompt card text-center mt-3 mb-4">
               <p>
-                Have questions or feedback on this project?{' '}
+                Have questions or feedback for this engineering project?{' '}
                 <Link to="/login" className="auth-link">
-                  Log in to join the discussion
+                  Log in to join the peer discussion
                 </Link>
                 .
               </p>
@@ -370,14 +387,17 @@ const ProjectDetailPage = () => {
           {/* Comments List */}
           {comments.length === 0 ? (
             <p className="text-muted mt-2">
-              No comments yet. Be the first to share your thoughts on this engineering project!
+              No comments yet. Be the first to share your review or question!
             </p>
           ) : (
             <div className="comments-list">
               {comments.map((c) => {
                 const commentAuthorId = c.author?._id || c.author;
                 const canDeleteComment =
-                  isAdmin || (currentUserId && currentUserId.toString() === commentAuthorId?.toString());
+                  isAdmin ||
+                  (currentUserId &&
+                    commentAuthorId &&
+                    currentUserId.toString() === commentAuthorId.toString());
 
                 return (
                   <div key={c._id} className="comment-item card">
@@ -401,7 +421,7 @@ const ProjectDetailPage = () => {
                           className="btn btn-danger-outline btn-xs"
                           title="Delete comment"
                         >
-                          ✕
+                          ✕ Delete
                         </button>
                       )}
                     </div>
@@ -413,6 +433,79 @@ const ProjectDetailPage = () => {
           )}
         </div>
       </div>
+
+      {/* Collaboration Request Message Modal */}
+      {isCollabModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsCollabModalOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">🤝 Request to Collaborate</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsCollabModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="modal-project-name">
+              Project: <strong>{project.title}</strong>
+            </p>
+            <p className="modal-subtitle">
+              Send a pitch to the project owner explaining your skills, experience, and what you'd like to contribute.
+            </p>
+
+            {collabError && (
+              <div className="alert alert-error mt-2">{collabError}</div>
+            )}
+
+            <form onSubmit={handleSendCollaboration} className="modal-form mt-3">
+              <div className="form-group">
+                <label htmlFor="modalMessage">Your Pitch / Contribution Message</label>
+                <textarea
+                  id="modalMessage"
+                  rows={4}
+                  className="form-control"
+                  placeholder="e.g. I have 2 years of experience with ROS2 and embedded Linux and would like to build the obstacle avoidance waypoint module..."
+                  value={collabMessage}
+                  onChange={(e) => setCollabMessage(e.target.value)}
+                  required
+                  autoFocus
+                />
+                <span className="char-counter">
+                  {collabMessage.trim().length} chars (minimum 5)
+                </span>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="submit"
+                  disabled={submittingCollab}
+                  className="btn btn-primary"
+                >
+                  {submittingCollab ? (
+                    <>
+                      <span className="spinner-sm"></span>
+                      Sending Request...
+                    </>
+                  ) : (
+                    'Send Collaboration Request'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCollabModalOpen(false)}
+                  className="btn btn-outline"
+                  disabled={submittingCollab}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

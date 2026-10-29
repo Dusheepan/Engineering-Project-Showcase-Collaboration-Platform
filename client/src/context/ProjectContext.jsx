@@ -5,12 +5,18 @@ const ProjectContext = createContext(null);
 
 export const ProjectProvider = ({ children }) => {
   const [projects, setProjects] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pages: 1,
+    total: 0,
+    count: 0,
+  });
   const [currentProject, setCurrentProject] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   /**
-   * Fetch all projects matching filter and query criteria
+   * Fetch all projects matching filter, sort, search, and pagination query criteria
    */
   const fetchProjects = useCallback(async (filters = {}) => {
     setLoading(true);
@@ -18,6 +24,13 @@ export const ProjectProvider = ({ children }) => {
     try {
       const result = await projectService.getAllProjects(filters);
       setProjects(result.data || []);
+      setPagination({
+        page: result.page || 1,
+        pages: result.pages || 1,
+        total: result.total ?? (result.data?.length || 0),
+        count: result.count ?? (result.data?.length || 0),
+      });
+      return result;
     } catch (err) {
       setError(err.message || 'Failed to fetch projects');
     } finally {
@@ -106,6 +119,7 @@ export const ProjectProvider = ({ children }) => {
 
   const value = {
     projects,
+    pagination,
     currentProject,
     loading,
     error,
@@ -133,3 +147,5 @@ export const useProjects = () => {
   }
   return context;
 };
+
+export default ProjectContext;
