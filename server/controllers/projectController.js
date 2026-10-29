@@ -1,9 +1,114 @@
 const Project = require('../models/Project');
-const User = require('../models/User');
+const Comment = require('../models/Comment');
+const CollaborationRequest = require('../models/CollaborationRequest');
 const { validationResult } = require('express-validator');
 
 /**
- * @desc    Get all projects (with search, category/status filters, and sorting)
+ * Format express-validator errors into a unified { field, message } array
+ * @param {Object} req - Express request
+ * @returns {Array|null} Array of formatted error objects or null
+ */
+const getValidationErrors = (req) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return errors.array().map((err) => ({
+      field: err.path || err.param,
+      message: err.msg,
+    }));
+  }
+  return null;
+};
+
+/**
+ * Helper to parse techStack input into a clean array of strings
+ * @param {Array|String} input - Array of technologies or comma-separated string
+ * @returns {Array<String>}
+ */
+const formatTechStack = (input) => {
+  if (Array.isArray(input)) {
+    return input.map((t) => String(t).trim()).filter(Boolean);
+  }
+  if (typeof input === 'string') {
+    return input
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+/**
+ * @desc    Create a new project
+ * @route   POST /api/projects
+ * @access  Private (Authentication required)
+ */
+const createProject = async (req, res, next) => {
+  try {
+    // 1. Validate request body with express-validator
+    const validationErrors = getValidationErrors(req);
+    if (validationErrors) {
+      return res.status(400).json({
+        success: false,
+        errors: validationErrors,
+      });
+    }
+
+    const {
+      title,
+      description,
+      techStack,
+      category,
+      githubUrl,
+      demoUrl,
+      status,
+      lookingForCollaborators,
+    } = req.body;
+
+    // 2. Format techStack array
+    const parsedTechStack = formatTechStack(techStack);
+    if (parsedTechStack.length === 0) {
+      return res.status(400).json({
+        success: false,
+        errors: [
+          {
+            field: 'techStack',
+            message: 'Project must include at least one technology in techStack',
+          },
+        ],
+      });
+    }
+
+    // 3. Create project with owner set to logged-in user (req.user._id)
+    const project = await Project.create({
+      title: title.trim(),
+      description: description.trim(),
+      techStack: parsedTechStack,
+      category,
+      githubUrl: (githubUrl || '').trim(),
+      demoUrl: (demoUrl || '').trim(),
+      status: status || 'Idea',
+      lookingForCollaborators: Boolean(lookingForCollaborators),
+      owner: req.user._id,
+    });
+
+    // 4. Populate owner name and details
+    const populatedProject = await project.populate(
+      'owner',
+      'name email role department'
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Project created successfully',
+      data: populatedProject,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get all projects with filtering, searching, sorting, and pagination
  * @route   GET /api/projects
  * @access  Public
  */
@@ -13,48 +118,69 @@ const getProjects = async (req, res, next) => {
       search,
       category,
       status,
-      lookingForCollaborators,
-      sortBy = 'createdAt',
-      order = 'desc',
+      sort = 'newest',
+      page = 1,
+      limit = 10,
     } = req.query;
 
     const query = {};
 
-    // Search filter across title, description, or techStack
-    if (search) {
+    // 1. Case-insensitive search across title, description, or techStack
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { techStack: { $regex: search, $options: 'i' } },
+        { title: searchRegex },
+        { description: searchRegex },
+        { techStack: searchRegex },
       ];
     }
 
-    // Filter by category (enum: Web, Mobile, AI/ML, Embedded, IoT, Other)
-    if (category && category !== 'All') {
-      query.category = category;
+    // 2. Filter by category (Web, Mobile, AI/ML, Embedded, IoT, Other)
+    if (category && category !== 'All' && category.trim()) {
+      query.category = category.trim();
     }
 
-    // Filter by status (enum: Idea, In Progress, Completed)
-    if (status && status !== 'All') {
-      query.status = status;
+    // 3. Filter by status (Idea, In Progress, Completed)
+    if (status && status !== 'All' && status.trim()) {
+      query.status = status.trim();
     }
 
-    // Filter by lookingForCollaborators flag
-    if (lookingForCollaborators !== undefined && lookingForCollaborators !== '') {
-      query.lookingForCollaborators = lookingForCollaborators === 'true';
-    }
-
-    // Sorting
+    // 4. Sorting logic: newest, oldest, title
     const sortOptions = {};
-    sortOptions[sortBy] = order === 'asc' ? 1 : -1;
+    switch (sort) {
+      case 'oldest':
+        sortOptions.createdAt = 1;
+        break;
+      case 'title':
+        sortOptions.title = 1;
+        break;
+      case 'newest':
+      default:
+        sortOptions.createdAt = -1;
+        break;
+    }
 
-    const projects = await Project.find(query)
-      .populate('owner', 'name email role department')
-      .sort(sortOptions);
+    // 5. Pagination calculation
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+    const skip = (pageNum - 1) * limitNum;
 
-    res.status(200).json({
+    // 6. Execute count and query in parallel
+    const [total, projects] = await Promise.all([
+      Project.countDocuments(query),
+      Project.find(query)
+        .populate('owner', 'name email role department')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limitNum),
+    ]);
+
+    return res.status(200).json({
       success: true,
       count: projects.length,
+      total,
+      page: pageNum,
+      pages: Math.ceil(total / limitNum) || 1,
       data: projects,
     });
   } catch (error) {
@@ -63,7 +189,7 @@ const getProjects = async (req, res, next) => {
 };
 
 /**
- * @desc    Get single project by ID with owner populated
+ * @desc    Get project details by ID with populated owner name
  * @route   GET /api/projects/:id
  * @access  Public
  */
@@ -77,11 +203,11 @@ const getProjectById = async (req, res, next) => {
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: `Project with ID ${req.params.id} not found`,
+        errors: [{ message: `Project with ID ${req.params.id} not found` }],
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: project,
     });
@@ -91,125 +217,97 @@ const getProjectById = async (req, res, next) => {
 };
 
 /**
- * @desc    Create a new project
- * @route   POST /api/projects
- * @access  Public (or Protected)
- */
-const createProject = async (req, res, next) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array(),
-      });
-    }
-
-    const {
-      title,
-      description,
-      techStack,
-      category,
-      githubUrl,
-      demoUrl,
-      status,
-      lookingForCollaborators,
-      owner,
-    } = req.body;
-
-    // Format techStack into an array of strings
-    const formattedTechStack = Array.isArray(techStack)
-      ? techStack
-      : typeof techStack === 'string'
-      ? techStack.split(',').map((t) => t.trim()).filter(Boolean)
-      : [];
-
-    // Resolve project owner: use body.owner, req.user._id, or default to the first user
-    let projectOwner = owner || req.user?._id;
-    if (!projectOwner) {
-      const defaultUser = await User.findOne();
-      if (defaultUser) {
-        projectOwner = defaultUser._id;
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: 'No user exists to assign as project owner. Run seed script first.',
-        });
-      }
-    }
-
-    const project = await Project.create({
-      title,
-      description,
-      techStack: formattedTechStack,
-      category: category || 'Other',
-      githubUrl: githubUrl || '',
-      demoUrl: demoUrl || '',
-      status: status || 'Idea',
-      lookingForCollaborators: Boolean(lookingForCollaborators),
-      owner: projectOwner,
-    });
-
-    const populatedProject = await project.populate(
-      'owner',
-      'name email role department'
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'Project created successfully',
-      data: populatedProject,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Update an existing project
+ * @desc    Update project (Only owner or admin allowed)
  * @route   PUT /api/projects/:id
- * @access  Public (or Protected)
+ * @access  Private (Authentication required)
  */
 const updateProject = async (req, res, next) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
+    // 1. Validate request body with express-validator
+    const validationErrors = getValidationErrors(req);
+    if (validationErrors) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: errors.array(),
+        errors: validationErrors,
       });
     }
 
+    // 2. Find target project
     const project = await Project.findById(req.params.id);
-
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: `Project with ID ${req.params.id} not found`,
+        errors: [{ message: `Project with ID ${req.params.id} not found` }],
       });
     }
 
-    const updateData = { ...req.body };
+    // 3. Authorization check: only owner or admin can update
+    const isOwner = project.owner.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
 
-    // Format techStack if string provided
-    if (typeof updateData.techStack === 'string') {
-      updateData.techStack = updateData.techStack
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean);
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        errors: [
+          {
+            message:
+              'Not authorized to update this project. Only the project owner or an administrator can modify it.',
+          },
+        ],
+      });
     }
 
-    const updated = await Project.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-      runValidators: true,
-    }).populate('owner', 'name email role department');
+    // 4. Prepare update payload
+    const updateData = {};
+    const allowedFields = [
+      'title',
+      'description',
+      'category',
+      'githubUrl',
+      'demoUrl',
+      'status',
+      'lookingForCollaborators',
+    ];
 
-    res.status(200).json({
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updateData[field] =
+          typeof req.body[field] === 'string'
+            ? req.body[field].trim()
+            : req.body[field];
+      }
+    });
+
+    if (req.body.techStack !== undefined) {
+      const parsedTech = formatTechStack(req.body.techStack);
+      if (parsedTech.length === 0) {
+        return res.status(400).json({
+          success: false,
+          errors: [
+            {
+              field: 'techStack',
+              message: 'Project must include at least one technology in techStack',
+            },
+          ],
+        });
+      }
+      updateData.techStack = parsedTech;
+    }
+
+    // 5. Update and return populated document
+    const updatedProject = await Project.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).populate('owner', 'name email role department');
+
+    return res.status(200).json({
       success: true,
       message: 'Project updated successfully',
-      data: updated,
+      data: updatedProject,
     });
   } catch (error) {
     next(error);
@@ -217,26 +315,48 @@ const updateProject = async (req, res, next) => {
 };
 
 /**
- * @desc    Delete a project safely
+ * @desc    Delete project (Only owner or admin; also deletes comments and collaboration requests)
  * @route   DELETE /api/projects/:id
- * @access  Public (or Protected)
+ * @access  Private (Authentication required)
  */
 const deleteProject = async (req, res, next) => {
   try {
+    // 1. Find target project
     const project = await Project.findById(req.params.id);
-
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: `Project with ID ${req.params.id} not found`,
+        errors: [{ message: `Project with ID ${req.params.id} not found` }],
       });
     }
 
-    await Project.findByIdAndDelete(req.params.id);
+    // 2. Authorization check: only owner or admin can delete
+    const isOwner = project.owner.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
 
-    res.status(200).json({
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        errors: [
+          {
+            message:
+              'Not authorized to delete this project. Only the project owner or an administrator can delete it.',
+          },
+        ],
+      });
+    }
+
+    // 3. Cascade deletion: delete associated comments and collaboration requests
+    await Promise.all([
+      Comment.deleteMany({ project: req.params.id }),
+      CollaborationRequest.deleteMany({ project: req.params.id }),
+      Project.findByIdAndDelete(req.params.id),
+    ]);
+
+    return res.status(200).json({
       success: true,
-      message: 'Project deleted successfully',
+      message:
+        'Project and associated comments and collaboration requests deleted successfully',
       data: { id: req.params.id },
     });
   } catch (error) {
@@ -245,9 +365,9 @@ const deleteProject = async (req, res, next) => {
 };
 
 module.exports = {
+  createProject,
   getProjects,
   getProjectById,
-  createProject,
   updateProject,
   deleteProject,
 };

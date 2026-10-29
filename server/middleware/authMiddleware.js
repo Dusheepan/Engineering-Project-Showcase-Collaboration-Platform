@@ -9,7 +9,7 @@ const protect = async (req, res, next) => {
   try {
     let token;
 
-    // Check for Authorization header starting with "Bearer"
+    // Check for Authorization header starting with "Bearer "
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith('Bearer ')
@@ -22,6 +22,7 @@ const protect = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'No authorization token provided. Access denied.',
+        errors: [{ message: 'No authorization token provided. Access denied.' }],
       });
     }
 
@@ -40,6 +41,9 @@ const protect = async (req, res, next) => {
         return res.status(401).json({
           success: false,
           message: 'The user belonging to this token no longer exists.',
+          errors: [
+            { message: 'The user belonging to this token no longer exists.' },
+          ],
         });
       }
 
@@ -51,6 +55,7 @@ const protect = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Token is invalid or has expired.',
+        errors: [{ message: 'Token is invalid or has expired.' }],
       });
     }
   } catch (error) {

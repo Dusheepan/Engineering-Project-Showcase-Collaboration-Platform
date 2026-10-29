@@ -1,41 +1,89 @@
 /**
- * Centralized Error Handling Middleware
+ * Global Error Handling Middleware
+ * Ensures the server never crashes on bad input, invalid ObjectIds, or unhandled exceptions
+ * Returns unified JSON error format: { success: false, errors: [...] }
  */
 const errorHandler = (err, req, res, next) => {
-  console.error(` Error: ${err.message}`);
+  // Log error for debugging during development
+  console.error(`❌ [Error Handler] ${err.name || 'Error'}: ${err.message}`);
 
-  // Mongoose CastError (e.g. invalid ObjectId)
+  // 1. Mongoose CastError (e.g. invalid MongoDB ObjectId)
   if (err.name === 'CastError') {
     return res.status(400).json({
       success: false,
-      message: `Invalid resource ID format: ${err.value}`,
+      errors: [
+        {
+          field: err.path,
+          message: `Invalid ID format: '${err.value}' is not a valid ObjectId`,
+        },
+      ],
     });
   }
 
-  // Mongoose duplicate key error (code 11000)
+  // 2. Mongoose Duplicate Key Error (Code 11000)
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue || {})[0] || 'field';
-    return res.status(400).json({
+    const value = err.keyValue ? err.keyValue[field] : '';
+    return res.status(409).json({
       success: false,
-      message: `Duplicate value entered for ${field}. It must be unique.`,
+      errors: [
+        {
+          field,
+          message: `A record with ${field} '${value}' already exists`,
+        },
+      ],
     });
   }
 
-  // Mongoose validation error
+  // 3. Mongoose Schema Validation Error
   if (err.name === 'ValidationError') {
-    const messages = Object.values(err.errors).map((val) => val.message);
+    const formattedErrors = Object.keys(err.errors || {}).map((key) => ({
+      field: key,
+      message: err.errors[key].message,
+    }));
     return res.status(400).json({
       success: false,
-      message: 'Validation failed',
-      errors: messages,
+      errors: formattedErrors,
     });
   }
 
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  res.status(statusCode).json({
+  // 4. Malformed JSON Body (SyntaxError from express.json parser)
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      errors: [
+        {
+          message: 'Malformed JSON in request body. Please verify JSON syntax.',
+        },
+      ],
+    });
+  }
+
+  // 5. JWT Errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      errors: [{ message: 'Invalid authentication token' }],
+    });
+  }
+
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      success: false,
+      errors: [{ message: 'Authentication token has expired' }],
+    });
+  }
+
+  // 6. Generic or Custom Status Code
+  const statusCode = err.statusCode || (res.statusCode >= 400 ? res.statusCode : 500);
+
+  return res.status(statusCode).json({
     success: false,
-    message: err.message || 'Internal Server Error',
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+    errors: [
+      {
+        message: err.message || 'Internal server error',
+      },
+    ],
   });
 };
 
