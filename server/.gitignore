@@ -1,0 +1,17 @@
+# OS metadata & AppleDouble files
+.DS_Store
+._*
+Thumbs.db
+
+# Dependencies
+node_modules/
+
+# Environment Variables
+.env
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
