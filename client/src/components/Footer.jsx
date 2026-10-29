@@ -5,7 +5,7 @@ const Footer = () => {
     <footer className="footer">
       <div className="container footer-content">
         <p>© {new Date().getFullYear()} Engineering Showcase — Faculty of Engineering</p>
-        <p className="footer-subtext">Built with MERN Stack (MongoDB, Express, React, Node.js)</p>
+        <p className="footer-subtext">Built with MERN Stack</p>
       </div>
     </footer>
   );

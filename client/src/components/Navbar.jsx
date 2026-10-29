@@ -6,8 +6,8 @@ const Navbar = () => {
     <header className="navbar">
       <div className="container nav-container">
         <Link to="/" className="brand-logo">
-          <span className="brand-icon">⚙️</span>
-          <span className="brand-name">Engineering<strong>Showcase</strong></span>
+        
+          <span className="brand-name">Engineering<strong> Showcase</strong></span>
         </Link>
 
         <nav className="nav-links">

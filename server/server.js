@@ -6,6 +6,8 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
+const commentRoutes = require('./routes/commentRoutes');
+const collaborationRoutes = require('./routes/collaborationRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 // Initialize Express application
@@ -31,6 +33,8 @@ app.get('/', (req, res) => {
     endpoints: {
       auth: '/api/auth',
       projects: '/api/projects',
+      comments: '/api/comments',
+      collaborations: '/api/collaborations',
       health: '/',
     },
   });
@@ -39,6 +43,8 @@ app.get('/', (req, res) => {
 // Mount API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/collaborations', collaborationRoutes);
 
 // 404 Handler for undefined routes
 app.use((req, res, next) => {
@@ -51,10 +57,12 @@ app.use((req, res, next) => {
 // Centralized Error Handling Middleware
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Engineering Showcase server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-  console.log(`🔗 API Base URL: http://localhost:${PORT}`);
-});
+// Start server only when run directly (e.g. node server.js)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Engineering Showcase server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+    console.log(`🔗 API Base URL: http://localhost:${PORT}`);
+  });
+}
 
 module.exports = app;

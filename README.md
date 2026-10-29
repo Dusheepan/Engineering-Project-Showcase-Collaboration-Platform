@@ -115,6 +115,23 @@ Base URL: `http://localhost:5001/api`
 | `GET` | `/` | Public | API root health check and available endpoints list |
 | `GET` | `/api/projects` | Public | List all projects with search, category, status, and sort filters |
 | `GET` | `/api/projects/:id` | Public | View project details with populated owner info |
-| `POST` | `/api/projects` | Public | Submit a new project |
-| `PUT` | `/api/projects/:id` | Public | Update an existing project |
-| `DELETE`| `/api/projects/:id` | Public | Remove a project |
+| `POST` | `/api/projects` | Protected | Submit a new project (binds logged-in user as owner) |
+| `PUT` | `/api/projects/:id` | Protected | Update a project (owner or admin only) |
+| `DELETE`| `/api/projects/:id` | Protected | Remove a project and cascade-delete comments & requests |
+
+### 💬 Comments (`/api/projects/:id/comments`, `/api/comments/:id`)
+
+| Method | Endpoint | Access | Status Codes | Description |
+|---|---|---|---|---|
+| `POST` | `/api/projects/:id/comments` | Protected | `201`, `400`, `401`, `404` | Add a comment to a project |
+| `GET` | `/api/projects/:id/comments` | Public | `200`, `404` | List all comments for a project (newest first) |
+| `DELETE`| `/api/comments/:id` | Protected | `200`, `401`, `403`, `404` | Delete a comment (comment author or admin only) |
+
+### 🤝 Collaboration Requests (`/api/collaborations`, `/api/projects/:id/collaborate`)
+
+| Method | Endpoint | Access | Status Codes | Description |
+|---|---|---|---|---|
+| `POST` | `/api/projects/:id/collaborate` | Protected | `201`, `400`, `401`, `404` | Send collaboration request (prevents self-request and duplicates) |
+| `GET` | `/api/collaborations/incoming` | Protected | `200`, `401` | View requests sent to projects owned by logged-in user |
+| `GET` | `/api/collaborations/mine` | Protected | `200`, `401` | View requests sent by logged-in user |
+| `PATCH` | `/api/collaborations/:id` | Protected | `200`, `400`, `401`, `403`, `404` | Accept or reject request (`accepted` / `rejected`, project owner only) |
