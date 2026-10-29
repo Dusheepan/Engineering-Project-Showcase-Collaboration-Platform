@@ -10,7 +10,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
-import ProjectFormPage from './pages/ProjectFormPage';
+import ProjectForm from './pages/ProjectForm';
 import DashboardPage from './pages/DashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -33,8 +33,8 @@ function App() {
                 {/* Protected Routes (Require Authentication) */}
                 <Route element={<ProtectedRoute />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/projects/new" element={<ProjectFormPage />} />
-                  <Route path="/projects/edit/:id" element={<ProjectFormPage />} />
+                  <Route path="/projects/new" element={<ProjectForm />} />
+                  <Route path="/projects/edit/:id" element={<ProjectForm />} />
                 </Route>
 
                 {/* 404 Catch-All */}
