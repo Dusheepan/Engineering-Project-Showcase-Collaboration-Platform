@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -28,6 +29,7 @@ app.get('/', (req, res) => {
     message: 'Welcome to the Engineering Showcase API',
     version: '1.0.0',
     endpoints: {
+      auth: '/api/auth',
       projects: '/api/projects',
       health: '/',
     },
@@ -35,6 +37,7 @@ app.get('/', (req, res) => {
 });
 
 // Mount API routes
+app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 
 // 404 Handler for undefined routes

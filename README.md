@@ -139,3 +139,28 @@ npm run dev
 ## 👥 Seeded Users (Password: `Password123!`)
 - **Student**: `alex.rivera@eng.university.edu` (Department: Computer Engineering)
 - **Admin**: `sarah.chen@eng.university.edu` (Department: Electrical & Electronic Engineering)
+
+---
+
+## 📡 API Endpoints Reference
+
+Base URL: `http://localhost:5001/api`
+
+### 🔐 Authentication (`/api/auth`)
+
+| Method | Endpoint | Access | Status Codes | Description |
+|---|---|---|---|---|
+| `POST` | `/api/auth/register` | Public | `201`, `400`, `409` | Registers a new user with bcrypt-hashed password & returns JWT token |
+| `POST` | `/api/auth/login` | Public | `200`, `400`, `401` | Authenticates with email & password, returns JWT token |
+| `GET` | `/api/auth/me` | Protected | `200`, `401` | Returns profile of current authenticated user attached to `req.user` |
+
+### 📁 Projects (`/api/projects`)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/` | Public | API root health check and available endpoints list |
+| `GET` | `/api/projects` | Public | List all projects with search, category, status, and sort filters |
+| `GET` | `/api/projects/:id` | Public | View project details with populated owner info |
+| `POST` | `/api/projects` | Public | Submit a new project |
+| `PUT` | `/api/projects/:id` | Public | Update an existing project |
+| `DELETE`| `/api/projects/:id` | Public | Remove a project |
