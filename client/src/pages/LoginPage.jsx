@@ -8,9 +8,13 @@ const LoginPage = () => {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { login } = useAuth();
+  const { login, authError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Check if redirected due to an expired session
+  const searchParams = new URLSearchParams(location.search);
+  const isSessionExpired = searchParams.get('expired') === 'true';
 
   // If redirected from a protected route, remember where the user wanted to go
   const from = location.state?.from?.pathname || '/dashboard';
@@ -49,6 +53,18 @@ const LoginPage = () => {
           <h1 className="auth-title">Welcome Back</h1>
           <p className="auth-subtitle">Log in to your Engineering Showcase account</p>
         </div>
+
+        {isSessionExpired && (
+          <div className="alert alert-warning">
+            ⚠️ Your session has expired. Please log in again to continue.
+          </div>
+        )}
+
+        {authError && !isSessionExpired && (
+          <div className="alert alert-warning">
+            ⚠️ {authError}
+          </div>
+        )}
 
         {error && <div className="alert alert-error">{error}</div>}
 

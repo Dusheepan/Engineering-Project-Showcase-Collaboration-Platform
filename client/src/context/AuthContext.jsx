@@ -3,8 +3,40 @@ import authService from '../services/authService';
 
 const AuthContext = createContext(null);
 
+/**
+ * Checks whether a given JWT token string has expired based on its payload 'exp' claim.
+ */
+const isTokenExpired = (jwtToken) => {
+  if (!jwtToken) return true;
+  try {
+    const parts = jwtToken.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return false;
+    // Buffer by 5 seconds to prevent race condition right on the boundary
+    return payload.exp * 1000 <= Date.now() + 5000;
+  } catch {
+    return true;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
+  const [token, setToken] = useState(() => {
+    const savedToken = localStorage.getItem('token');
+    if (!savedToken) return null;
+    if (isTokenExpired(savedToken)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      return null;
+    }
+    return savedToken;
+  });
+
   const [user, setUser] = useState(() => {
+    const savedToken = localStorage.getItem('token');
+    if (!savedToken || isTokenExpired(savedToken)) {
+      return null;
+    }
     try {
       const savedUser = localStorage.getItem('user');
       return savedUser ? JSON.parse(savedUser) : null;
@@ -13,9 +45,24 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+
+  /**
+   * Listen for system-wide auth expiration events dispatched by Axios interceptors
+   */
+  useEffect(() => {
+    const handleSessionExpired = (event) => {
+      setToken(null);
+      setUser(null);
+      setAuthError(event.detail?.message || 'Your session has expired. Please log in again.');
+    };
+
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('auth:session-expired', handleSessionExpired);
+    };
+  }, []);
 
   /**
    * Verify token on initial app load and retrieve fresh user profile
@@ -23,6 +70,15 @@ export const AuthProvider = ({ children }) => {
   const loadUser = useCallback(async () => {
     const savedToken = localStorage.getItem('token');
     if (!savedToken) {
+      setLoading(false);
+      return;
+    }
+
+    if (isTokenExpired(savedToken)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
       setLoading(false);
       return;
     }

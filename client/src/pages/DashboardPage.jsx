@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ConfirmModal';
 
 const DashboardPage = () => {
   const { user } = useAuth();
-  const { projects, fetchProjects, deleteProject } = useProjects();
+  const { projects, loading: projectsLoading, error: projectsError, fetchProjects, deleteProject } = useProjects();
 
   const [activeTab, setActiveTab] = useState('projects'); // 'projects' | 'incoming' | 'sent'
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -209,7 +209,23 @@ const DashboardPage = () => {
       {/* TAB 1: MY PROJECTS TABLE */}
       {activeTab === 'projects' && (
         <div className="dashboard-tab-content">
-          {myProjects.length === 0 ? (
+          {projectsLoading ? (
+            <div className="loading-state">
+              <div className="spinner"></div>
+              <p>Loading your projects...</p>
+            </div>
+          ) : projectsError ? (
+            <div className="alert alert-error">
+              <p>⚠️ Error: {projectsError}</p>
+              <button
+                type="button"
+                onClick={() => fetchProjects()}
+                className="btn btn-outline btn-sm mt-2"
+              >
+                Retry Fetch
+              </button>
+            </div>
+          ) : myProjects.length === 0 ? (
             <div className="card empty-state text-center">
               <div className="empty-icon">📁</div>
               <h3>You haven't submitted any projects yet</h3>
@@ -246,16 +262,16 @@ const DashboardPage = () => {
                       <td>
                         <strong>
                           <Link to={`/projects/${p._id}`} className="table-project-link">
-                            {p.title}
+                            {p.title || 'Untitled Project'}
                           </Link>
                         </strong>
                       </td>
                       <td>
-                        <span className="department-tag">{p.category}</span>
+                        <span className="department-tag">{p.category || 'Other'}</span>
                       </td>
                       <td>
                         <span className={`status-badge ${getStatusBadge(p.status)}`}>
-                          {p.status}
+                          {p.status || 'Idea'}
                         </span>
                       </td>
                       <td>
@@ -266,7 +282,7 @@ const DashboardPage = () => {
                         )}
                       </td>
                       <td className="text-muted">
-                        {new Date(p.createdAt).toLocaleDateString()}
+                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'Recent'}
                       </td>
                       <td>
                         <div className="table-actions">
@@ -330,9 +346,13 @@ const DashboardPage = () => {
                       <span className="project-badge">
                         Project:{' '}
                         <strong>
-                          <Link to={`/projects/${req.project?._id}`}>
-                            {req.project?.title || 'Unknown Project'}
-                          </Link>
+                          {req.project ? (
+                            <Link to={`/projects/${req.project._id}`}>
+                              {req.project.title || 'Untitled Project'}
+                            </Link>
+                          ) : (
+                            <span className="text-muted italic">Archived Project</span>
+                          )}
                         </strong>
                       </span>
                       <h4 className="requester-name">
@@ -340,7 +360,7 @@ const DashboardPage = () => {
                       </h4>
                       <p className="requester-email">
                         🏛️ {req.requester?.department || 'Engineering'} • 📧{' '}
-                        {req.requester?.email}
+                        {req.requester?.email || 'No email provided'}
                       </p>
                     </div>
                     <span className={`status-badge ${getStatusBadge(req.status)}`}>
@@ -354,7 +374,7 @@ const DashboardPage = () => {
 
                   <div className="request-card-footer">
                     <span className="request-date">
-                      Received on: {new Date(req.createdAt).toLocaleDateString()}
+                      Received on: {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'Recent'}
                     </span>
 
                     {req.status === 'pending' ? (
@@ -436,9 +456,13 @@ const DashboardPage = () => {
                   <div className="request-card-header">
                     <div>
                       <h4 className="project-title-link">
-                        <Link to={`/projects/${req.project?._id}`}>
-                          {req.project?.title || 'Engineering Project'}
-                        </Link>
+                        {req.project ? (
+                          <Link to={`/projects/${req.project._id}`}>
+                            {req.project.title || 'Engineering Project'}
+                          </Link>
+                        ) : (
+                          <span className="text-muted italic">Archived Project</span>
+                        )}
                       </h4>
                       <p className="owner-meta">
                         Owner: {req.project?.owner?.name || 'Student Creator'} (
@@ -460,14 +484,16 @@ const DashboardPage = () => {
 
                   <div className="request-card-footer">
                     <span className="request-date">
-                      Submitted on: {new Date(req.createdAt).toLocaleDateString()}
+                      Submitted on: {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'Recent'}
                     </span>
-                    <Link
-                      to={`/projects/${req.project?._id}`}
-                      className="btn btn-outline btn-sm"
-                    >
-                      View Project Details
-                    </Link>
+                    {req.project && (
+                      <Link
+                        to={`/projects/${req.project._id}`}
+                        className="btn btn-outline btn-sm"
+                      >
+                        View Project Details
+                      </Link>
+                    )}
                   </div>
                 </div>
               ))}

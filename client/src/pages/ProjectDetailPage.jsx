@@ -238,7 +238,11 @@ const ProjectDetailPage = () => {
     );
   }
 
-  const techs = project.techStack || project.technologies || [];
+  const techs = Array.isArray(project.techStack)
+    ? project.techStack
+    : Array.isArray(project.technologies)
+    ? project.technologies
+    : [];
 
   return (
     <div className="container page-container project-detail-page">
@@ -501,7 +505,7 @@ const ProjectDetailPage = () => {
                           <strong>{c.author?.name || 'Anonymous User'}</strong>
                           <span className="comment-meta-sub">
                             {c.author?.department ? ` (${c.author.department})` : ''} •{' '}
-                            {new Date(c.createdAt).toLocaleDateString()}
+                            {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent'}
                           </span>
                         </div>
                       </div>

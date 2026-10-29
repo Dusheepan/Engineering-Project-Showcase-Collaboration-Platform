@@ -43,6 +43,36 @@ api.interceptors.response.use(
       error.message ||
       'An unexpected error occurred';
 
+    // Auto-logout when token has expired or is invalid (401 Unauthorized)
+    if (error.response?.status === 401) {
+      const requestUrl = error.config?.url || '';
+      const isAuthAttempt =
+        requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+
+      // Do not auto-logout if the 401 was from an intentional login attempt with bad credentials
+      if (!isAuthAttempt) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+
+        if (typeof window !== 'undefined') {
+          // Notify in-memory AuthContext listeners
+          window.dispatchEvent(
+            new CustomEvent('auth:session-expired', {
+              detail: {
+                message: firstErrorMessage || 'Your session has expired. Please log in again.',
+              },
+            })
+          );
+
+          // Redirect to login if user was on a protected or active page
+          const pathname = window.location.pathname;
+          if (!pathname.startsWith('/login') && !pathname.startsWith('/register')) {
+            window.location.href = '/login?expired=true';
+          }
+        }
+      }
+    }
+
     const customError = {
       message: firstErrorMessage,
       errors: errorsList,

@@ -37,7 +37,15 @@ const ProjectCard = ({ project, onDelete }) => {
     }
   };
 
-  const techs = project.techStack || project.technologies || [];
+  if (!project) return null;
+
+  const techs = Array.isArray(project.techStack)
+    ? project.techStack
+    : Array.isArray(project.technologies)
+    ? project.technologies
+    : [];
+
+  const desc = project.description || '';
 
   // Determine if current user can edit/delete this card
   const currentUserId = user?._id || user?.id;
@@ -67,21 +75,21 @@ const ProjectCard = ({ project, onDelete }) => {
             </span>
           )}
           <span className={`status-badge ${getStatusBadgeClass(project.status)}`}>
-            {project.status}
+            {project.status || 'Idea'}
           </span>
         </div>
       </div>
 
       {/* Title */}
       <h3 className="project-title">
-        <Link to={`/projects/${project._id}`}>{project.title}</Link>
+        <Link to={`/projects/${project._id}`}>{project.title || 'Untitled Project'}</Link>
       </h3>
 
       {/* Description Snippet */}
       <p className="project-description">
-        {project.description.length > 130
-          ? `${project.description.substring(0, 130)}...`
-          : project.description}
+        {desc.length > 130
+          ? `${desc.substring(0, 130)}...`
+          : desc || 'No description provided.'}
       </p>
 
       {/* Tech Stack Chips */}

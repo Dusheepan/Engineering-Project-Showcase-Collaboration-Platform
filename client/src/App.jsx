@@ -13,6 +13,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProjectForm from './pages/ProjectForm';
 import DashboardPage from './pages/DashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
@@ -22,24 +23,26 @@ function App() {
           <div className="app-layout">
             <Navbar />
             <main className="main-content">
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<HomePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/projects/:id" element={<ProjectDetailPage />} />
+              <ErrorBoundary>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/projects" element={<ProjectsPage />} />
+                  <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
-                {/* Protected Routes (Require Authentication) */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/projects/new" element={<ProjectForm />} />
-                  <Route path="/projects/edit/:id" element={<ProjectForm />} />
-                </Route>
+                  {/* Protected Routes (Require Authentication) */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/projects/new" element={<ProjectForm />} />
+                    <Route path="/projects/edit/:id" element={<ProjectForm />} />
+                  </Route>
 
-                {/* 404 Catch-All */}
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
+                  {/* 404 Catch-All */}
+                  <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+              </ErrorBoundary>
             </main>
             <Footer />
           </div>
