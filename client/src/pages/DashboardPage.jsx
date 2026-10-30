@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProjects } from '../context/ProjectContext';
+import projectService from '../services/projectService';
 import collaborationService from '../services/collaborationService';
 import ConfirmModal from '../components/ConfirmModal';
 import { getStatusBadgeClass, formatDate } from '../utils/formatters';
@@ -13,14 +14,20 @@ import { getStatusBadgeClass, formatDate } from '../utils/formatters';
  */
 const DashboardPage = () => {
   const { user } = useAuth();
-  const { projects, loading: projectsLoading, error: projectsError, fetchProjects, deleteProject } = useProjects();
+  const { deleteProject } = useProjects();
 
   const [activeTab, setActiveTab] = useState('projects'); // 'projects' | 'incoming' | 'sent'
+  const [myProjects, setMyProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState(null);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
   const [loadingCollabs, setLoadingCollabs] = useState(false);
   const [collabError, setCollabError] = useState(null);
   const [actionToast, setActionToast] = useState(null);
+
+  // Current authenticated user ID
+  const currentUserId = user?._id || user?.id;
 
   // Delete Confirmation Modal State
   const [deleteModal, setDeleteModal] = useState({
@@ -30,17 +37,27 @@ const DashboardPage = () => {
     loading: false,
   });
 
-  // Fetch all projects to filter by current user
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+  // Fetch projects owned by current user
+  const loadMyProjects = useCallback(async () => {
+    if (!currentUserId) return;
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const res = await projectService.getAllProjects({
+        owner: currentUserId,
+        limit: 100,
+      });
+      setMyProjects(res.data || []);
+    } catch (err) {
+      setProjectsError(err.message || 'Failed to load your projects');
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [currentUserId]);
 
-  // Filter projects owned by current user
-  const currentUserId = user?._id || user?.id;
-  const myProjects = projects.filter((p) => {
-    const ownerId = p.owner?._id || p.owner;
-    return ownerId?.toString() === currentUserId?.toString();
-  });
+  useEffect(() => {
+    loadMyProjects();
+  }, [loadMyProjects]);
 
   // Fetch collaboration requests
   const loadCollaborations = useCallback(async () => {
@@ -101,8 +118,8 @@ const DashboardPage = () => {
       await deleteProject(deleteModal.projectId);
       showToast('success', `Project "${deleteModal.projectTitle}" was deleted permanently.`);
       handleCloseDeleteModal();
-      // Refresh list
-      fetchProjects();
+      // Refresh user's projects list
+      loadMyProjects();
     } catch (err) {
       showToast('error', err.message || 'Failed to delete project');
       setDeleteModal((prev) => ({ ...prev, loading: false }));
@@ -210,7 +227,7 @@ const DashboardPage = () => {
               <p>⚠️ Error: {projectsError}</p>
               <button
                 type="button"
-                onClick={() => fetchProjects()}
+                onClick={loadMyProjects}
                 className="btn btn-outline btn-sm mt-2"
               >
                 Retry Fetch

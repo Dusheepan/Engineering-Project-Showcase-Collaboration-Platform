@@ -63,6 +63,9 @@ const createProject = async (req, res, next) => {
     }
 
     // 3. Create project with owner set to logged-in user (req.user._id)
+    const isSeekingCollab =
+      lookingForCollaborators === true || lookingForCollaborators === 'true';
+
     const project = await Project.create({
       title: title.trim(),
       description: description.trim(),
@@ -71,7 +74,7 @@ const createProject = async (req, res, next) => {
       githubUrl: (githubUrl || '').trim(),
       demoUrl: (demoUrl || '').trim(),
       status: status || 'Idea',
-      lookingForCollaborators: Boolean(lookingForCollaborators),
+      lookingForCollaborators: isSeekingCollab,
       owner: req.user._id,
     });
 
@@ -102,6 +105,7 @@ const getProjects = async (req, res, next) => {
       search,
       category,
       status,
+      owner,
       sort = 'newest',
       page = 1,
       limit = 10,
@@ -109,9 +113,10 @@ const getProjects = async (req, res, next) => {
 
     const query = {};
 
-    // 1. Case-insensitive search across title, description, or techStack
+    // 1. Case-insensitive search across title, description, or techStack (escapes regex special chars)
     if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
       query.$or = [
         { title: searchRegex },
         { description: searchRegex },
@@ -127,6 +132,11 @@ const getProjects = async (req, res, next) => {
     // 3. Filter by status (Idea, In Progress, Completed)
     if (status && status !== 'All' && status.trim()) {
       query.status = status.trim();
+    }
+
+    // 4. Filter by owner ID (e.g. for student dashboard)
+    if (owner && owner.trim()) {
+      query.owner = owner.trim();
     }
 
     // 4. Sorting logic: newest, oldest, title
@@ -250,7 +260,6 @@ const updateProject = async (req, res, next) => {
       'githubUrl',
       'demoUrl',
       'status',
-      'lookingForCollaborators',
     ];
 
     allowedFields.forEach((field) => {
@@ -261,6 +270,12 @@ const updateProject = async (req, res, next) => {
             : req.body[field];
       }
     });
+
+    if (req.body.lookingForCollaborators !== undefined) {
+      updateData.lookingForCollaborators =
+        req.body.lookingForCollaborators === true ||
+        req.body.lookingForCollaborators === 'true';
+    }
 
     if (req.body.techStack !== undefined) {
       const parsedTech = formatTechStack(req.body.techStack);

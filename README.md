@@ -365,7 +365,7 @@ Base URL: `http://localhost:5001/api`
 | Method | Endpoint | Access | Status Codes | Description |
 |:---:|---|:---:|:---:|---|
 | `GET` | `/` | Public | `200` | Health check & list of available API endpoints |
-| `GET` | `/api/projects` | Public | `200` | List projects with query params: `search`, `category`, `status`, `sort`, `page`, `limit` |
+| `GET` | `/api/projects` | Public | `200` | List projects with query params: `search`, `category`, `status`, `owner`, `sort`, `page`, `limit` |
 | `GET` | `/api/projects/:id` | Public | `200`, `400`, `404` | Get detailed information for a single project (with populated owner) |
 | `POST` | `/api/projects` | Protected | `201`, `400`, `401` | Create a new project (logged-in user assigned as owner) |
 | `PUT` | `/api/projects/:id` | Protected | `200`, `400`, `401`, `403`, `404` | Update an existing project (owner or admin only) |
